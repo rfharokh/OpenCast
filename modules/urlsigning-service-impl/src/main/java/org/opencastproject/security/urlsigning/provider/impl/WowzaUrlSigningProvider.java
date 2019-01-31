@@ -35,8 +35,6 @@ import org.slf4j.LoggerFactory;
 import java.net.URI;
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
-import java.time.OffsetDateTime;
-import java.time.ZoneOffset;
 import java.util.ArrayList;
 import java.util.Base64;
 import java.util.List;
@@ -69,20 +67,30 @@ public class WowzaUrlSigningProvider extends AbstractUrlSigningProvider {
     if (!accepts(policy.getBaseUrl())) {
       throw UrlSigningException.urlNotSupported();
     }
-    // Get the key that matches this URI since there must be one that matches as the base url has been accepted.
-    AbstractUrlSigningProvider.KeyEntry keyEntry = getKeyEntry(policy.getBaseUrl());
-
-    policy.setResourceStrategy(getResourceStrategy());
 
     try {
       URI uri = new URI(policy.getBaseUrl());
+
+      /*
+        For backward compatibility, but i can not see how this could work.
+        According to the documentation "https://www.wowza.com/docs/how-to-protect-streaming-using-securetoken-in-wowza-streaming-engine" 
+        if you using token v1 we need a TEA implimentation.
+      */
+      if ("rtmp".equals((uri.getScheme())))
+      {
+          return super.sign(policy);
+      }
+
+      // Get the key that matches this URI since there must be one that matches as the base url has been accepted.
+      AbstractUrlSigningProvider.KeyEntry keyEntry = getKeyEntry(policy.getBaseUrl());
+
+      policy.setResourceStrategy(getResourceStrategy());
+
+
       List<NameValuePair> queryStringParameters = new ArrayList<>();
       if (uri.getQuery() != null) {
         queryStringParameters = URLEncodedUtils.parse(new URI(policy.getBaseUrl()).getQuery(), StandardCharsets.UTF_8);
       }
-      queryStringParameters.addAll(URLEncodedUtils.parse(
-              addSignutureToRequest(policy, keyEntry.getId(), keyEntry.getKey()), //ResourceRequestUtil.policyToResourceRequestQueryString(policy, keyEntry.getId(), keyEntry.getKey()),
-              StandardCharsets.UTF_8));
       return new URI(uri.getScheme(), null, uri.getHost(), uri.getPort(), uri.getPath(),
               addSignutureToRequest(policy, keyEntry.getId(), keyEntry.getKey()), null).toString();
     } catch (Exception e) {
@@ -91,34 +99,30 @@ public class WowzaUrlSigningProvider extends AbstractUrlSigningProvider {
     }
   }
 
+  //** https://www.wowza.com/docs/how-to-protect-streaming-using-securetoken-in-wowza-streaming-engine **//
   @SuppressWarnings("unchecked")
   private String addSignutureToRequest(Policy policy, String encryptionKeyId, String encryptionKey) throws Exception  {
-    //List<NameValuePair> queryStringParameters = new ArrayList<NameValuePair>();
-    getLogger().error("DEBUG: " + Base64.getEncoder().encodeToString(policy.getResource().getBytes(StandardCharsets.UTF_8)));
-
     final String startTime;
     final String endTime = Long.toString(policy.getValidUntil().getMillis() / 1000);
 
     if (policy.getValidFrom().isPresent()) {
         startTime = Long.toString(policy.getValidFrom().get().getMillis() / 1000);
     } else {
-        OffsetDateTime utc = OffsetDateTime.now(ZoneOffset.UTC);
-        startTime = Long.toString(utc.toEpochSecond());
+        startTime = "";
     }
 
     String queryStringParameters = new String();
 
     queryStringParameters +=  encryptionKeyId + "endtime=" + endTime;
-    //queryStringParameters.add(new BasicNameValuePair(encryptionKeyId + "endtime", endTime));
 
-    queryStringParameters += "&" + encryptionKeyId + "starttime=" + startTime;
-    //queryStringParameters.add(new BasicNameValuePair(encryptionKeyId + "starttime", startTime));
-    //}
+    if (!"".equals(startTime))
+    {
+        queryStringParameters += "&" + encryptionKeyId + "starttime=" + startTime;
+    }
 
     queryStringParameters += "&" + encryptionKeyId + "hash=" + generateHash(policy, encryptionKeyId, encryptionKey, startTime, endTime);
-    //queryStringParameters.add(new BasicNameValuePair(encryptionKeyId + "hash", generateHash(policy, encryptionKeyId, encryptionKey, startTime, endTime)));
 
-    return queryStringParameters;//URLEncodedUtils.format(queryStringParameters, StandardCharsets.US_ASCII);
+    return queryStringParameters;
   }
 
   private String generateHash(Policy policy, String encryptionKeyId, String encryptionKey, String startTime, String endTime) throws Exception {
@@ -129,7 +133,11 @@ public class WowzaUrlSigningProvider extends AbstractUrlSigningProvider {
     SortedMap<String, String> arguments = new TreeMap<String, String>();
 
     arguments.put(encryptionKeyId + "endtime", endTime);
-    arguments.put(encryptionKeyId + "starttime", startTime);
+
+    if (!"".equals(startTime))
+    {
+        arguments.put(encryptionKeyId + "starttime", startTime);
+    }
 
     for (Map.Entry<String,String> entry : arguments.entrySet()) {
         String value = entry.getValue();
@@ -138,10 +146,7 @@ public class WowzaUrlSigningProvider extends AbstractUrlSigningProvider {
         urlToHash += "&" + key + "=" + value;
     }
 
-    getLogger().error(urlToHash);
-
     MessageDigest md = MessageDigest.getInstance("SHA-256");
-
     byte[] messageDigest = md.digest(urlToHash.getBytes());
     String base64Hash = Base64.getEncoder().encodeToString(messageDigest);
 
