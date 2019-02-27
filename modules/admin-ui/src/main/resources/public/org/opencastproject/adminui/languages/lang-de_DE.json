@@ -897,7 +897,9 @@
                   "PAUSED": "Pausiert",
                   "SUCCEEDED": "Verarbeitet",
                   "FAILED": "Fehlgeschlagen",
+                  "FAILING": "Schlägt fehl",
                   "SKIPPED": "Übersprungen",
+                  "STOPPED": "Angehalten",
                   "RETRY": "Wiederholt"
                }
             },
@@ -1747,7 +1749,7 @@
       "SEGMENTS": {
          "REMOVE_SEGMENT": "Segment löschen",
          "USE_SEGMENT": "Dieses Segment nutzen",
-         "START": "Zur Startseite",
+         "START": "Start",
          "END": "Ende"
       },
       "THUMBNAIL": {

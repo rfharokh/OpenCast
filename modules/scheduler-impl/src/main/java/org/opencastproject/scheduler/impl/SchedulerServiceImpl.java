@@ -135,7 +135,8 @@ import com.google.common.cache.Cache;
 import com.google.common.cache.CacheBuilder;
 
 import net.fortuna.ical4j.model.Period;
-import net.fortuna.ical4j.model.ValidationException;
+import net.fortuna.ical4j.model.TimeZoneRegistry;
+import net.fortuna.ical4j.model.TimeZoneRegistryFactory;
 import net.fortuna.ical4j.model.property.RRule;
 
 import org.apache.commons.io.IOUtils;
@@ -641,14 +642,18 @@ public class SchedulerServiceImpl extends AbstractIndexProducer implements Sched
   }
 
 
+  @Override
   public Map<String, Period> addMultipleEvents(RRule rRule, Date start, Date end, Long duration, TimeZone tz,
           String captureAgentId, Set<String> userIds, MediaPackage templateMp, Map<String, String> wfProperties,
           Map<String, String> caMetadata, Opt<Boolean> optOut, Opt<String> schedulingSource, String modificationOrigin)
           throws UnauthorizedException, SchedulerConflictException, SchedulerTransactionLockException, SchedulerException {
-    List<Period> periods = calculatePeriods(rRule, start, end, duration, tz);
+    // input Rrule is UTC. Needs to be adjusted to tz
+    Util.adjustRrule(rRule, start, tz);
+    List<Period> periods = Util.calculatePeriods(start, end, duration, rRule, tz);
     return addMultipleEventInternal(periods, captureAgentId, userIds, templateMp, wfProperties, caMetadata,
             modificationOrigin, optOut, schedulingSource, Opt.<String> none());
   }
+
 
 
   private Map<String, Period> addMultipleEventInternal(List<Period> periods, String captureAgentId,
@@ -1559,7 +1564,8 @@ public class SchedulerServiceImpl extends AbstractIndexProducer implements Sched
     notNull(end, "end");
     notNull(tz, "timeZone");
 
-    final List<Period> periods = calculatePeriods(rrule, start, end, duration, tz);
+    Util.adjustRrule(rrule, start, tz);
+    final List<Period> periods =  Util.calculatePeriods(start, end, duration, rrule, tz);
     return findConflictingEvents(periods, captureAgentId, tz);
   }
 
@@ -1571,29 +1577,23 @@ public class SchedulerServiceImpl extends AbstractIndexProducer implements Sched
 
     try {
       final ARecord[] alreadyScheduledEvents = getScheduledEvents(Opt.some(captureAgentId));
-      final TimeZone utc = TimeZone.getTimeZone("utc");
+      TimeZoneRegistry registry = TimeZoneRegistryFactory.getInstance().createRegistry();
 
       Set<MediaPackage> events = new HashSet<>();
 
       for (Period event : periods) {
-        TimeZone.setDefault(utc);
+        event.setTimeZone(registry.getTimeZone(tz.getID()));
         final Date startDate = event.getStart();
         final Date endDate = event.getEnd();
 
         events.addAll(findConflictingEvents(startDate, endDate, alreadyScheduledEvents));
       }
 
-      TimeZone.setDefault(null);
       return new ArrayList<>(events);
     } catch (Exception e) {
       logger.error("Failed to search for conflicting events: {}", getStackTrace(e));
       throw new SchedulerException(e);
     }
-  }
-
-  @Override
-  public List<Period> calculatePeriods(RRule rrule, Date start, Date end, long duration, TimeZone tz) {
-    return Util.calculatePeriods(start, end, duration, rrule, tz);
   }
 
   @Override
@@ -1657,11 +1657,7 @@ public class SchedulerServiceImpl extends AbstractIndexProducer implements Sched
 
       // Only validate calendars with events. Without any events, the iCalendar won't validate
       if (cal.getCalendar().getComponents().size() > 0) {
-        try {
-          cal.getCalendar().validate();
-        } catch (ValidationException e) {
-          logger.warn("Recording calendar could not be validated (returning it anyways): {}", getStackTrace(e));
-        }
+        cal.getCalendar().validate();
       }
 
       return cal.getCalendar().toString();
