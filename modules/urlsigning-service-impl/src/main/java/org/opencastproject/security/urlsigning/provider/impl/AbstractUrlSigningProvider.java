@@ -75,7 +75,7 @@ public abstract class AbstractUrlSigningProvider implements UrlSigningProvider, 
   /**
    * A class to contain the necessary key entries for url signing.
    */
-  private class KeyEntry {
+  protected class KeyEntry {
     private final String keyId;
     private final String key;
     private final String organization;
@@ -150,7 +150,7 @@ public abstract class AbstractUrlSigningProvider implements UrlSigningProvider, 
    *          The url to check against the possible matchers.
    * @return The {@link KeyEntry} if it is available.
    */
-  private KeyEntry getKeyEntry(String baseUrl) {
+  protected KeyEntry getKeyEntry(String baseUrl) {
     for (String uriMatcher : keys.keySet()) {
       if (baseUrl.startsWith(uriMatcher)) {
         return keys.get(uriMatcher);
