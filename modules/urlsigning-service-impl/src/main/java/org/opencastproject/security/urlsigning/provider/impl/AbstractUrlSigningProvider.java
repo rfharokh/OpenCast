@@ -80,10 +80,14 @@ public abstract class AbstractUrlSigningProvider implements UrlSigningProvider, 
   /**
    * A class to contain the necessary key entries for url signing.
    */
-  private static class KeyEntry {
+  protected static class KeyEntry {
     private String key = null;
     private String url = null;
     private String organization = ANY_ORGANIZATION;
+
+    protected String getKey() {
+        return key;
+    }
   }
 
   /** The map to contain the list of keys, their ids and the urls they match. */
@@ -115,7 +119,7 @@ public abstract class AbstractUrlSigningProvider implements UrlSigningProvider, 
    *          The url to check against the possible matchers.
    * @return The {@link KeyEntry} if it is available.
    */
-  private Optional<Map.Entry<String, KeyEntry>> getKeyEntry(String baseUrl) {
+  protected Optional<Map.Entry<String, KeyEntry>> getKeyEntry(String baseUrl) {
     return keys.entrySet().stream()
             .filter(entry -> baseUrl.startsWith(entry.getValue().url))
             .findAny();
