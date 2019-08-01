@@ -81,22 +81,22 @@ public class WowzaUrlSigningProvider extends AbstractUrlSigningProvider {
       }
 
       // Get the key that matches this URI since there must be one that matches as the base url has been accepted.
-
       Map.Entry<String, KeyEntry> keyEntry = getKeyEntry(policy.getBaseUrl()).get();
 
       policy.setResourceStrategy(getResourceStrategy());
 
-      List<NameValuePair> queryStringParameters = new ArrayList<>();
-      if (uri.getQuery() != null) {
-        queryStringParameters = URLEncodedUtils.parse(new URI(policy.getBaseUrl()).getQuery(), StandardCharsets.UTF_8);
+      //@todo Add error handling!
+      if( !keyEntry.getValue().getKey().contains(":")){
+          getLogger().error("Given key not valid. (prefix:secret)");
+          
+          throw new Exception("Given key not valid. (prefix:secret)");
       }
-
       String[] wowzaKeyPair = keyEntry.getValue().getKey().split(":");
       String wowzaPrefix = wowzaKeyPair[0];
-      String wowzaKey = wowzaKeyPair[1];
+      String wowzaSecret = wowzaKeyPair[1];
 
       return new URI(uri.getScheme(), null, uri.getHost(), uri.getPort(), uri.getPath(),
-              addSignutureToRequest(policy, wowzaPrefix, wowzaKey), null).toString();
+              addSignutureToRequest(policy, wowzaPrefix, wowzaSecret), null).toString();
     } catch (Exception e) {
       getLogger().error("Unable to create signed URL because {}", ExceptionUtils.getStackTrace(e));
       throw new UrlSigningException(e);
