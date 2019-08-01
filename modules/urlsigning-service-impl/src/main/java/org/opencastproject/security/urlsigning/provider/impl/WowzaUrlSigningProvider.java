@@ -26,17 +26,12 @@ import org.opencastproject.urlsigning.common.Policy;
 import org.opencastproject.urlsigning.common.ResourceStrategy;
 
 import org.apache.commons.lang3.exception.ExceptionUtils;
-import org.apache.http.NameValuePair;
-import org.apache.http.client.utils.URLEncodedUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.net.URI;
-import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
-import java.util.ArrayList;
 import java.util.Base64;
-import java.util.List;
 import java.util.Map;
 import java.util.SortedMap;
 import java.util.TreeMap;
@@ -86,9 +81,9 @@ public class WowzaUrlSigningProvider extends AbstractUrlSigningProvider {
       policy.setResourceStrategy(getResourceStrategy());
 
       //@todo Add error handling!
-      if( !keyEntry.getValue().getKey().contains(":")){
+      if (!keyEntry.getValue().getKey().contains(":")) {
           getLogger().error("Given key not valid. (prefix:secret)");
-          
+
           throw new Exception("Given key not valid. (prefix:secret)");
       }
       String[] wowzaKeyPair = keyEntry.getValue().getKey().split(":");
