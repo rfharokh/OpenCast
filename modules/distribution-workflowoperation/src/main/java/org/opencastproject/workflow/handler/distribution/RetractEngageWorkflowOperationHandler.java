@@ -57,40 +57,26 @@ import java.util.Set;
  */
 public class RetractEngageWorkflowOperationHandler extends AbstractWorkflowOperationHandler {
 
-  /**
-   * The logging facility
-   */
+  /** The logging facility */
   private static final Logger logger = LoggerFactory.getLogger(RetractEngageWorkflowOperationHandler.class);
 
-  /**
-   * Configuration property ids
-   */
+  /** Configuration property ids */
   private static final String STREAMING_URL_PROPERTY = "org.opencastproject.streaming.url";
   private static final String STREAMING_PUBLISH_PROPERTY = "org.opencastproject.publish.streaming.formats";
 
-  /**
-   * The streaming distribution service
-   */
+  /** The streaming distribution service */
   private DistributionService streamingDistributionService = null;
 
-  /**
-   * The download distribution service
-   */
+  /** The download distribution service */
   private DownloadDistributionService downloadDistributionService = null;
 
-  /**
-   * The search service
-   */
+  /** The search service */
   private SearchService searchService = null;
 
-  /**
-   * Whether to distribute to streaming server
-   */
+  /** Whether to distribute to streaming server */
   private boolean distributeStreaming = false;
 
-  /**
-   * Which streaming formats should be published automatically
-   */
+  /** Which streaming formats should be published automatically */
   private List<String> publishedStreamingFormats = null;
 
   /**
