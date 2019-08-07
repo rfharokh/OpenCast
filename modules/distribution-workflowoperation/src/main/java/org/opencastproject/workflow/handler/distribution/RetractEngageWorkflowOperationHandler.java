@@ -46,8 +46,10 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Optional;
 import java.util.Set;
 
 /**
@@ -55,29 +57,46 @@ import java.util.Set;
  */
 public class RetractEngageWorkflowOperationHandler extends AbstractWorkflowOperationHandler {
 
-  /** The logging facility */
+  /**
+   * The logging facility
+   */
   private static final Logger logger = LoggerFactory.getLogger(RetractEngageWorkflowOperationHandler.class);
 
-  /** Configuration property id */
+  /**
+   * Configuration property ids
+   */
   private static final String STREAMING_URL_PROPERTY = "org.opencastproject.streaming.url";
+  private static final String STREAMING_PUBLISH_PROPERTY = "org.opencastproject.publish.streaming.formats";
 
-  /** The streaming distribution service */
+  /**
+   * The streaming distribution service
+   */
   private DistributionService streamingDistributionService = null;
 
-  /** The download distribution service */
+  /**
+   * The download distribution service
+   */
   private DownloadDistributionService downloadDistributionService = null;
 
-  /** The search service */
+  /**
+   * The search service
+   */
   private SearchService searchService = null;
 
-  /** Whether to distribute to streaming server */
+  /**
+   * Whether to distribute to streaming server
+   */
   private boolean distributeStreaming = false;
+
+  /**
+   * Which streaming formats should be published automatically
+   */
+  private List<String> publishedStreamingFormats = null;
 
   /**
    * Callback for the OSGi declarative services configuration.
    *
-   * @param streamingDistributionService
-   *          the streaming distribution service
+   * @param streamingDistributionService the streaming distribution service
    */
   protected void setStreamingDistributionService(DistributionService streamingDistributionService) {
     this.streamingDistributionService = streamingDistributionService;
@@ -86,8 +105,7 @@ public class RetractEngageWorkflowOperationHandler extends AbstractWorkflowOpera
   /**
    * Callback for the OSGi declarative services configuration.
    *
-   * @param downloadDistributionService
-   *          the download distribution service
+   * @param downloadDistributionService the download distribution service
    */
   protected void setDownloadDistributionService(DownloadDistributionService downloadDistributionService) {
     this.downloadDistributionService = downloadDistributionService;
@@ -97,8 +115,7 @@ public class RetractEngageWorkflowOperationHandler extends AbstractWorkflowOpera
    * Callback for declarative services configuration that will introduce us to the search service. Implementation
    * assumes that the reference is configured as being static.
    *
-   * @param searchService
-   *          an instance of the search service
+   * @param searchService an instance of the search service
    */
   protected void setSearchService(SearchService searchService) {
     this.searchService = searchService;
@@ -114,9 +131,10 @@ public class RetractEngageWorkflowOperationHandler extends AbstractWorkflowOpera
     super.activate(cc);
     BundleContext bundleContext = cc.getBundleContext();
 
-    if (StringUtils.isNotBlank(bundleContext.getProperty(STREAMING_URL_PROPERTY)))
-      distributeStreaming = true;
-    }
+    distributeStreaming = StringUtils.isNotBlank(bundleContext.getProperty(STREAMING_URL_PROPERTY));
+    publishedStreamingFormats = Arrays.asList(Optional.ofNullable(StringUtils.split(
+            bundleContext.getProperty(STREAMING_PUBLISH_PROPERTY))).orElse(new String[0]));
+  }
 
   /**
    * {@inheritDoc}
@@ -170,8 +188,6 @@ public class RetractEngageWorkflowOperationHandler extends AbstractWorkflowOpera
         throw new WorkflowOperationException("One of the download/streaming retract job did not complete successfully");
       }
 
-      logger.debug("Retraction operation complete");
-
       logger.info("Removing media package {} from the search index", mediaPackage);
       Job deleteFromSearch = searchService.delete(mediaPackage.getIdentifier().toString());
       if (!waitForStatus(deleteFromSearch).isSuccess())
@@ -180,15 +196,20 @@ public class RetractEngageWorkflowOperationHandler extends AbstractWorkflowOpera
       logger.debug("Remove from search operation complete");
 
       // Remove publication element
-      logger.info("Removing engage publication element from media package {}", mediaPackage);
+      logger.info("Removing publication elements from media package {}", mediaPackage);
       Publication[] publications = mediaPackage.getPublications();
       for (Publication publication : publications) {
         if (CHANNEL_ID.equals(publication.getChannel())) {
           mediaPackage.remove(publication);
           logger.debug("Remove engage publication element '{}' complete", publication);
         }
+        if (publishedStreamingFormats.contains(publication.getChannel())) {
+          mediaPackage.remove(publication);
+          logger.debug("Remove publication element '{}' complete", publication);
+        }
       }
 
+      logger.debug("Retraction operation complete");
       return createResult(mediaPackage, Action.CONTINUE);
     } catch (Throwable t) {
       throw new WorkflowOperationException(t);
