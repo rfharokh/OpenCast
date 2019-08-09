@@ -85,9 +85,6 @@ import java.util.Set;
 import java.util.UUID;
 import java.util.stream.Collectors;
 
-
-
-
 /**
  * The workflow definition for handling "engage publication" operations
  */
