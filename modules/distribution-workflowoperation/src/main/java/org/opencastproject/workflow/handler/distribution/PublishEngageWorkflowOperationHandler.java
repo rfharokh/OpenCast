@@ -85,6 +85,9 @@ import java.util.Set;
 import java.util.UUID;
 import java.util.stream.Collectors;
 
+
+
+
 /**
  * The workflow definition for handling "engage publication" operations
  */
@@ -383,14 +386,14 @@ public class PublishEngageWorkflowOperationHandler extends AbstractWorkflowOpera
         // create publication URI for streaming
         if (distributeStreaming && !publishedStreamingFormats.isEmpty()) {
           Track[] tracks = mediaPackageForSearch.getTracks();
+          Publication publicationForStream = PublicationImpl.publication(UUID.randomUUID().toString(), "streaming",null,null);
           for (Track track : tracks) {
-            String channel = track.getMimeType().toString();
-            if (isStreamingFormat(track) && publishedStreamingFormats.contains(channel)) {
-              Publication publicationForStream = PublicationImpl.publication(UUID.randomUUID().toString(), channel,
-                      track.getURI(), track.getMimeType());
-              mediaPackage.add(publicationForStream);
+            String mimeType = track.getMimeType().toString();
+            if (isStreamingFormat(track) && publishedStreamingFormats.contains(mimeType)) {
+              publicationForStream.addTrack(track);
             }
           }
+          mediaPackage.add(publicationForStream);
        }
 
         // Adding media package to the search index
