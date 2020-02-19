@@ -45,6 +45,7 @@ import org.junit.AfterClass;
 import org.junit.BeforeClass;
 import org.junit.Test;
 
+import io.restassured.http.ContentType;
 import uk.co.datumedge.hamcrest.json.SameJSONAs;
 
 /** Test cases for {@link SeriesEndpoint} */
@@ -102,7 +103,6 @@ public class SeriesEndpointTest {
     assertEquals("opencast", json.get("organization"));
     assertEquals("Gracie Walsh", json.get("creator"));
     assertEquals("2015-04-16T09:12:36Z", json.get("created"));
-    assertEquals(true, json.get("opt_out"));
 
     JSONArray topics = (JSONArray) json.get("subjects");
     assertEquals(1, topics.size());
@@ -191,6 +191,7 @@ public class SeriesEndpointTest {
   @Test
   public void testMissingMetadataUpdateSeriesMetadataJson() throws Exception {
     given().pathParam("seriesId", "4fd0ef66-aea5-4b7a-a62a-a4ada0eafd6f").queryParam("type", "dublincore/series")
+            .contentType(ContentType.URLENC)
             .accept(APP_V1_0_0_JSON).log().all().expect().statusCode(SC_BAD_REQUEST).when()
             .put(env.host("/{seriesId}/metadata"));
   }

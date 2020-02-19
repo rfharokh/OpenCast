@@ -21,9 +21,6 @@
 
 package org.opencastproject.workflow.handler.assetmanager;
 
-import static org.opencastproject.util.data.Collections.smap;
-import static org.opencastproject.util.data.Tuple.tuple;
-
 import org.opencastproject.assetmanager.api.Version;
 import org.opencastproject.assetmanager.impl.TieredStorageAssetManagerJobProducer;
 import org.opencastproject.assetmanager.impl.VersionImpl;
@@ -40,24 +37,12 @@ import org.apache.commons.lang3.StringUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import java.util.SortedMap;
-
 public class AssetManagerStorageMoveOperationHandler extends AbstractWorkflowOperationHandler {
 
   private static final Logger logger = LoggerFactory.getLogger(AssetManagerStorageMoveOperationHandler.class);
 
   /** The asset manager. */
   private TieredStorageAssetManagerJobProducer tsamjp;
-
-  /** The configuration options for this handler */
-  private static final SortedMap<String, String> CONFIG_OPTIONS = smap(
-          tuple("target-storage", "The target storage type"),
-          tuple("target-version", "The specific version to move"));
-
-  @Override
-  public SortedMap<String, String> getConfigurationOptions() {
-    return CONFIG_OPTIONS;
-  }
 
   /** OSGi DI */
   public void setJobProducer(TieredStorageAssetManagerJobProducer tsamjp) {
@@ -81,20 +66,22 @@ public class AssetManagerStorageMoveOperationHandler extends AbstractWorkflowOpe
 
     //A missing version is ok, that just means to select all of them (which is represented as null)
     String targetVersion = StringUtils.trimToNull(operation.getConfiguration("target-version"));
-    Version version = null;
+    logger.debug("Target version set to {}", targetVersion);
+
+    logger.debug("Beginning moving process");
+    Job job;
+    //Note that a null version implies *all* versions
     if (null != targetVersion) {
+      Version version;
       try {
         version = VersionImpl.mk(Long.parseLong(targetVersion));
       } catch (NumberFormatException e) {
         throw new WorkflowOperationException("Invalid version number", e);
       }
+      job = tsamjp.moveByIdAndVersion(version, mp.getIdentifier().toString(), targetStorage);
+    } else {
+      job = tsamjp.moveById(mp.getIdentifier().toString(), targetStorage);
     }
-
-    logger.debug("Target version set to {}", version);
-
-    logger.debug("Beginning moving process");
-    //Note that a null version implies *all* versions
-    Job job = tsamjp.moveByIdAndVersion(version, mp.getIdentifier().compact(), targetStorage);
     if (waitForStatus(job).isSuccess()) {
       return createResult(WorkflowOperationResult.Action.CONTINUE);
     } else {

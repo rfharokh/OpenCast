@@ -15,7 +15,7 @@ Authentication
 --------------
 
 The External API currenlty only supports basic authentication. To enable basic authentication, uncomment the following
-blocks in `/etc/security/mh_default.org`:
+blocks in `/etc/security/mh_default_org.xml`:
 
     <!-- Basic authentication
     <sec:custom-filter after="BASIC_AUTH_FILTER" ref="basicAuthenticationFilter" />
@@ -87,6 +87,12 @@ directly in the Opencast administrative user interface.
 |ROLE_API_SERIES_PROPERTIES_EDIT |PUT    |/api/series/\*/properties                             |
 |ROLE_API_SERIES_DELETE          |DELETE |/api/series/\*                                        |
 
+**Statistics API**
+
+|ROLE                            |METHOD | URL                                                      |
+|--------------------------------|-------|----------------------------------------------------------|
+|ROLE_API_STATISTICS_VIEW        |GET    |/api/statistics/providers<br>/api/statistics/providers/\* |
+|ROLE_API_STATISTICS_VIEW        |POST   |/api/statistics/data/query                                |
 
 **Groups API**
 

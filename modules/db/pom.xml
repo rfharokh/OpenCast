@@ -7,7 +7,7 @@
   <parent>
     <groupId>org.opencastproject</groupId>
     <artifactId>base</artifactId>
-    <version>7-SNAPSHOT</version>
+    <version>9-SNAPSHOT</version>
     <relativePath>../../pom.xml</relativePath>
   </parent>
   <properties>
@@ -32,11 +32,6 @@
     <dependency>
       <groupId>org.slf4j</groupId>
       <artifactId>slf4j-log4j12</artifactId>
-      <scope>test</scope>
-    </dependency>
-    <dependency>
-      <groupId>log4j</groupId>
-      <artifactId>log4j</artifactId>
       <scope>test</scope>
     </dependency>
     <dependency>
@@ -71,8 +66,13 @@
       <artifactId>mysql-connector-java</artifactId>
     </dependency>
     <dependency>
-      <groupId>postgresql</groupId>
+      <groupId>org.postgresql</groupId>
       <artifactId>postgresql</artifactId>
+    </dependency>
+    <dependency>
+      <groupId>net.java.dev.jna</groupId>
+      <artifactId>jna</artifactId>
+      <version>4.1.0</version>
     </dependency>
   </dependencies>
   <build>
@@ -91,6 +91,7 @@
               !org.apache.lucene.*,
               !org.jboss.resource.adapter.jdbc.*,
               !org.hibernate.*,
+              !com.sun.jna.platform.win32,
               org.w3c.dom;version=0,
               *
             </Import-Package>
@@ -100,6 +101,7 @@
               h2;inline=true,
               mchange-commons-java;inline=true,
               mysql-connector-java;inline=true,
+              jna,
               postgresql;inline=true
             </Embed-Dependency>
             <Export-Package>

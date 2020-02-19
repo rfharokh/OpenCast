@@ -34,7 +34,6 @@ import static javax.servlet.http.HttpServletResponse.SC_NO_CONTENT;
 import static javax.servlet.http.HttpServletResponse.SC_OK;
 import static org.apache.commons.lang3.StringUtils.join;
 import static org.apache.commons.lang3.exception.ExceptionUtils.getMessage;
-import static org.apache.commons.lang3.exception.ExceptionUtils.getStackTrace;
 import static org.opencastproject.util.doc.rest.RestParameter.Type.STRING;
 
 import org.opencastproject.external.common.ApiMediaType;
@@ -81,7 +80,7 @@ import javax.ws.rs.WebApplicationException;
 import javax.ws.rs.core.Response;
 
 @Path("/")
-@Produces({ ApiMediaType.JSON, ApiMediaType.VERSION_1_0_0, ApiMediaType.VERSION_1_1_0 })
+@Produces({ ApiMediaType.JSON, ApiMediaType.VERSION_1_0_0, ApiMediaType.VERSION_1_1_0, ApiMediaType.VERSION_1_2_0, ApiMediaType.VERSION_1_3_0, ApiMediaType.VERSION_1_4_0 })
 @RestService(name = "externalapigroups", title = "External API Groups Service", notes = {}, abstractText = "Provides resources and operations related to the groups")
 public class GroupsEndpoint {
 
@@ -129,7 +128,7 @@ public class GroupsEndpoint {
       results = indexService.getGroups(filter, optLimit, optOffset, Opt.nul(StringUtils.trimToNull(sort)),
               externalIndex);
     } catch (SearchIndexException e) {
-      logger.error("The External Search Index was not able to get the groups list: {}", getStackTrace(e));
+      logger.error("The External Search Index was not able to get the groups list:", e);
       return ApiResponses.serverError("Could not retrieve groups, reason: '%s'", getMessage(e));
     }
 
@@ -192,7 +191,7 @@ public class GroupsEndpoint {
     try {
       indexService.updateGroup(id, name, description, roles, members);
     } catch (IllegalArgumentException e) {
-      logger.warn(e.getMessage());
+      logger.warn("Unable to update group id {}: {}", id, e.getMessage());
       return Response.status(SC_BAD_REQUEST).build();
     } catch (UnauthorizedException ex) {
       return Response.status(SC_FORBIDDEN).build();
@@ -215,7 +214,7 @@ public class GroupsEndpoint {
     try {
       indexService.createGroup(name, description, roles, members);
     } catch (IllegalArgumentException e) {
-      logger.warn(e.getMessage());
+      logger.warn("Unable to create group {}: {}", name, e.getMessage());
       return Response.status(SC_BAD_REQUEST).build();
     } catch (UnauthorizedException e) {
       return Response.status(SC_FORBIDDEN).build();
@@ -246,7 +245,7 @@ public class GroupsEndpoint {
             indexService.updateGroup(group.getIdentifier(), group.getName(), group.getDescription(),
                     StringUtils.join(group.getRoles(), ","), StringUtils.join(group.getMembers(), ","));
           } catch (IllegalArgumentException e) {
-            logger.warn(e.getMessage());
+            logger.warn("Unable to add member to group id '{}': {}", id, e.getMessage());
             return Response.status(SC_BAD_REQUEST).build();
           } catch (UnauthorizedException ex) {
             return Response.status(SC_FORBIDDEN).build();
@@ -259,11 +258,10 @@ public class GroupsEndpoint {
         return ApiResponses.notFound("Cannot find group with id '%s'.", id);
       }
     } catch (SearchIndexException e) {
-      logger.warn("The external search index was not able to retrieve the group with id '%s', reason: ",
-              getStackTrace(e));
+      logger.warn("The external search index was not able to retrieve the group with id '{}', reason: ", id, e);
       return ApiResponses.serverError("Could not retrieve group with id '%s', reason: '%s'", id, getMessage(e));
     } catch (NotFoundException e) {
-      logger.warn("The external search index was not able to update the group with id {}, ", getStackTrace(e));
+      logger.warn("The external search index was not able to update the group with id {}, ", id, e);
       return ApiResponses.serverError("Could not update group with id '%s', reason: '%s'", id, getMessage(e));
     }
   }
@@ -289,7 +287,7 @@ public class GroupsEndpoint {
             indexService.updateGroup(group.getIdentifier(), group.getName(), group.getDescription(),
                     StringUtils.join(group.getRoles(), ","), StringUtils.join(group.getMembers(), ","));
           } catch (IllegalArgumentException e) {
-            logger.warn(e.getMessage());
+            logger.warn("Unable to remove member from group id '{}': {}", id, e.getMessage());
             return Response.status(SC_BAD_REQUEST).build();
           } catch (UnauthorizedException ex) {
             return Response.status(SC_FORBIDDEN).build();
@@ -302,10 +300,10 @@ public class GroupsEndpoint {
         return ApiResponses.notFound("Cannot find group with id '%s'.", id);
       }
     } catch (SearchIndexException e) {
-      logger.warn("The external search index was not able to retrieve the group with id {}, ", getStackTrace(e));
+      logger.warn("The external search index was not able to retrieve the group with id {}, ", id, e);
       return ApiResponses.serverError("Could not retrieve groups, reason: '%s'", getMessage(e));
     } catch (NotFoundException e) {
-      logger.warn("The external search index was not able to update the group with id {}, ", getStackTrace(e));
+      logger.warn("The external search index was not able to update the group with id {}, ", id, e);
       return ApiResponses.serverError("Could not update group with id '%s', reason: '%s'", id, getMessage(e));
     }
   }

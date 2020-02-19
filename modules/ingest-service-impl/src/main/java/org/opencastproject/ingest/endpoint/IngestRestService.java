@@ -117,7 +117,7 @@ import javax.ws.rs.core.Response.Status;
                 + "not working and is either restarting or has failed",
         "A status code 500 means a general failure has occurred which is not recoverable and was not anticipated. In "
                 + "other words, there is a bug! You should file an error report with your server logs from the time when the "
-                + "error occurred: <a href=\"https://opencast.jira.com\">Opencast Issue Tracker</a>" })
+                + "error occurred: <a href=\"https://github.com/opencast/opencast/issues\">Opencast Issue Tracker</a>" })
 public class IngestRestService extends AbstractJobProducerEndpoint {
 
   private static final Logger logger = LoggerFactory.getLogger(IngestRestService.class);
@@ -234,7 +234,7 @@ public class IngestRestService extends AbstractJobProducerEndpoint {
       startCache.put(mp.getIdentifier().toString(), new Date());
       return Response.ok(mp).build();
     } catch (Exception e) {
-      logger.warn(e.getMessage(), e);
+      logger.warn("Unable to create mediapackage", e);
       return Response.serverError().status(Status.INTERNAL_SERVER_ERROR).build();
     }
   }
@@ -253,7 +253,7 @@ public class IngestRestService extends AbstractJobProducerEndpoint {
       startCache.put(mp.getIdentifier().toString(), new Date());
       return Response.ok(mp).build();
     } catch (Exception e) {
-      logger.warn(e.getMessage(), e);
+      logger.warn("Unable to create empty mediapackage", e);
       return Response.serverError().status(Status.INTERNAL_SERVER_ERROR).build();
     }
   }
@@ -270,7 +270,7 @@ public class IngestRestService extends AbstractJobProducerEndpoint {
       ingestService.discardMediaPackage(mp);
       return Response.ok().build();
     } catch (Exception e) {
-      logger.warn(e.getMessage(), e);
+      logger.warn("Unable to discard mediapackage {}", mpx, e);
       return Response.serverError().status(Status.INTERNAL_SERVER_ERROR).build();
     }
   }
@@ -300,7 +300,7 @@ public class IngestRestService extends AbstractJobProducerEndpoint {
       mp = ingestService.addTrack(new URI(url), MediaPackageElementFlavor.parseFlavor(flavor), tagsArray, mp);
       return Response.ok(mp).build();
     } catch (Exception e) {
-      logger.warn(e.getMessage(), e);
+      logger.warn("Unable to add mediapackage track", e);
       return Response.serverError().status(Status.INTERNAL_SERVER_ERROR).build();
     }
   }
@@ -350,7 +350,7 @@ public class IngestRestService extends AbstractJobProducerEndpoint {
       mp = ingestService.addPartialTrack(new URI(url), MediaPackageElementFlavor.parseFlavor(flavor), startTime, mp);
       return Response.ok(mp).build();
     } catch (Exception e) {
-      logger.warn(e.getMessage(), e);
+      logger.warn("Unable to add partial track", e);
       return Response.serverError().status(Status.INTERNAL_SERVER_ERROR).build();
     }
   }
@@ -392,7 +392,7 @@ public class IngestRestService extends AbstractJobProducerEndpoint {
               MediaPackageElementFlavor.parseFlavor(flavor), mp);
       return Response.ok(resultingMediaPackage).build();
     } catch (Exception e) {
-      logger.warn(e.getMessage(), e);
+      logger.warn("Unable to add catalog", e);
       return Response.serverError().status(Status.INTERNAL_SERVER_ERROR).build();
     }
   }
@@ -432,7 +432,7 @@ public class IngestRestService extends AbstractJobProducerEndpoint {
       mp = ingestService.addAttachment(new URI(url), MediaPackageElementFlavor.parseFlavor(flavor), mp);
       return Response.ok(mp).build();
     } catch (Exception e) {
-      logger.warn(e.getMessage(), e);
+      logger.warn("Unable to add attachment", e);
       return Response.serverError().status(Status.INTERNAL_SERVER_ERROR).build();
     }
   }
@@ -545,7 +545,7 @@ public class IngestRestService extends AbstractJobProducerEndpoint {
       }
       return Response.ok(MediaPackageParser.getAsXml(mp)).build();
     } catch (Exception e) {
-      logger.warn(e.getMessage(), e);
+      logger.warn("Unable to add mediapackage element", e);
       return Response.serverError().status(Status.INTERNAL_SERVER_ERROR).build();
     } finally {
       IOUtils.closeQuietly(in);
@@ -753,7 +753,7 @@ public class IngestRestService extends AbstractJobProducerEndpoint {
                 episodeDCCatalogNumber += 1;
               } catch (java.net.URISyntaxException e) {
                 /* Parameter was not a valid URL: Return 400 Bad Request */
-                logger.warn(e.getMessage(), e);
+                logger.warn("Invalid URI {} for episodeDCCatalogUri: {}", value, e.getMessage());
                 return Response.serverError().status(Status.BAD_REQUEST).build();
               }
 
@@ -773,7 +773,7 @@ public class IngestRestService extends AbstractJobProducerEndpoint {
                 ingestService.addCatalog(dcurl, MediaPackageElements.SERIES, mp);
               } catch (java.net.URISyntaxException e) {
                 /* Parameter was not a valid URL: Return 400 Bad Request */
-                logger.warn(e.getMessage(), e);
+                logger.warn("Invalid URI {} for seriesDCCatalogUri: {}", value, e.getMessage());
                 return Response.serverError().status(Status.BAD_REQUEST).build();
               }
 
@@ -795,7 +795,7 @@ public class IngestRestService extends AbstractJobProducerEndpoint {
                 mediaUrl = new URI(value);
               } catch (java.net.URISyntaxException e) {
                 /* Parameter was not a valid URL: Return 400 Bad Request */
-                logger.warn(e.getMessage(), e);
+                logger.warn("Invalid URI {} for media: {}", value, e.getMessage());
                 return Response.serverError().status(Status.BAD_REQUEST).build();
               }
               ingestService.addTrack(mediaUrl, flavor, mp);
@@ -837,13 +837,16 @@ public class IngestRestService extends AbstractJobProducerEndpoint {
           return Response.serverError().status(Status.BAD_REQUEST).build();
         }
 
-        WorkflowInstance workflow = (wdID == null) ? ingestService.ingest(mp) : ingestService.ingest(mp, wdID,
-                workflowProperties);
+        WorkflowInstance workflow = (wdID == null)
+            ? ingestService.ingest(mp)
+            : ingestService.ingest(mp, wdID, workflowProperties);
         return Response.ok(workflow).build();
       }
       return Response.serverError().status(Status.BAD_REQUEST).build();
+    } catch (IllegalArgumentException e) {
+      return Response.status(Status.BAD_REQUEST).entity(e.getMessage()).build();
     } catch (Exception e) {
-      logger.warn(e.getMessage(), e);
+      logger.warn("Unable to add mediapackage", e);
       return Response.serverError().status(Status.INTERNAL_SERVER_ERROR).build();
     }
   }
@@ -1013,13 +1016,13 @@ public class IngestRestService extends AbstractJobProducerEndpoint {
       }
       return Response.ok(WorkflowParser.toXml(workflow)).build();
     } catch (NotFoundException e) {
-      logger.info(e.getMessage());
+      logger.info("Not found: {}", e.getMessage());
       return Response.status(Status.NOT_FOUND).build();
     } catch (MediaPackageException e) {
-      logger.warn(e.getMessage());
+      logger.warn("Unable to ingest mediapackage: {}", e.getMessage());
       return Response.serverError().status(Status.BAD_REQUEST).build();
     } catch (Exception e) {
-      logger.warn(e.getMessage(), e);
+      logger.warn("Unable to ingest mediapackage", e);
       return Response.serverError().status(Status.INTERNAL_SERVER_ERROR).build();
     } finally {
       IOUtils.closeQuietly(in);
@@ -1146,7 +1149,7 @@ public class IngestRestService extends AbstractJobProducerEndpoint {
       startCache.asMap().remove(mp.getIdentifier().toString());
       return Response.ok(WorkflowParser.toXml(workflow)).build();
     } catch (Exception e) {
-      logger.warn(e.getMessage(), e);
+      logger.warn("Unable to ingest mediapackage", e);
       return Response.serverError().status(Status.INTERNAL_SERVER_ERROR).build();
     }
   }
@@ -1281,7 +1284,7 @@ public class IngestRestService extends AbstractJobProducerEndpoint {
       logger.error("Could not write catalog to disk: {}", e.getMessage());
       return Response.serverError().build();
     } catch (Exception e) {
-      logger.error(e.getMessage());
+      logger.error("Unable to add catalog: {}", e.getMessage());
       return Response.serverError().build();
     } finally {
       IOUtils.closeQuietly(in);

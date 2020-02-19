@@ -22,7 +22,6 @@ package org.opencastproject.migration;
 
 import org.opencastproject.assetmanager.api.AssetManager;
 import org.opencastproject.assetmanager.api.Property;
-import org.opencastproject.assetmanager.api.Value;
 import org.opencastproject.assetmanager.api.Version;
 import org.opencastproject.assetmanager.api.fn.Properties;
 import org.opencastproject.assetmanager.api.query.AQueryBuilder;
@@ -47,6 +46,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.io.IOException;
+import java.util.Arrays;
 import java.util.Date;
 import java.util.Dictionary;
 
@@ -71,8 +71,6 @@ public class SchedulerMigrationService {
   static final String CA_NAMESPACE = SCHEDULER_NAMESPACE + ".ca.configuration";
   static final String RECORDING_LAST_HEARD_CONFIG = "recording_last_heard";
   static final String RECORDING_STATE_CONFIG = "recording_state";
-  static final String REVIEW_DATE_CONFIG = "review_date";
-  static final String REVIEW_STATUS_CONFIG = "review_status";
   static final String SOURCE_CONFIG = "source";
   static final String PRESENTERS_CONFIG = "presenters";
   static final String AGENT_CONFIG = "agent";
@@ -157,8 +155,7 @@ public class SchedulerMigrationService {
   private Stream<ARecord> getScheduledEvents() {
     final AQueryBuilder query = assetManager.createQuery();
     // query filter for organization could be helpful to split up big migrations
-    final Predicate predicate = withOrganization(query).and(withVersion(query)).and(withOwner(query))
-        .and(withProperties(query));
+    final Predicate predicate = withOrganization(query).and(withVersion(query)).and(withProperties(query));
     // select necessary properties when assembling query
     return query.select(query.propertiesOf(SCHEDULER_NAMESPACE, WORKFLOW_NAMESPACE, CA_NAMESPACE))
         .where(predicate).run().getRecords();
@@ -166,10 +163,6 @@ public class SchedulerMigrationService {
 
   private Predicate withOrganization(AQueryBuilder query) {
     return query.organizationId().eq(securityService.getOrganization().getId());
-  }
-
-  private Predicate withOwner(AQueryBuilder query) {
-    return query.owner().eq(SNAPSHOT_OWNER);
   }
 
   private Predicate withVersion(AQueryBuilder query) {
@@ -217,10 +210,6 @@ public class SchedulerMigrationService {
       if (lastModifiedDate.isSome()) {
         entity.setLastModifiedDate(lastModifiedDate.get());
       }
-      final Opt<Boolean> optout = event.getProperties().apply(Properties.getValueOpt(Value.BOOLEAN, OPTOUT_CONFIG));
-      if (optout.isSome()) {
-        entity.setOptOut(optout.get());
-      }
       final Opt<String> presenters = event.getProperties().apply(Properties.getStringOpt(PRESENTERS_CONFIG));
       if (presenters.isSome()) {
         entity.setPresenters(presenters.get());
@@ -232,14 +221,6 @@ public class SchedulerMigrationService {
       final Opt<String> recState = event.getProperties().apply(Properties.getStringOpt(RECORDING_STATE_CONFIG));
       if (recState.isSome()) {
         entity.setRecordingState(recState.get());
-      }
-      final Opt<Date> reviewDate = event.getProperties().apply(Properties.getDateOpt(REVIEW_DATE_CONFIG));
-      if (reviewDate.isSome()) {
-        entity.setReviewDate(reviewDate.get());
-      }
-      final Opt<String> reviewStatus = event.getProperties().apply(Properties.getStringOpt(REVIEW_STATUS_CONFIG));
-      if (reviewStatus.isSome()) {
-        entity.setReviewStatus(reviewStatus.get());
       }
       final Opt<String> source = event.getProperties().apply(Properties.getStringOpt(SOURCE_CONFIG));
       if (source.isSome()) {
@@ -261,9 +242,10 @@ public class SchedulerMigrationService {
       tx.commit();
       try {
         // Remove obsolete asset manager properties
-        final AQueryBuilder query = assetManager.createQuery();
-        final long deleted = query.delete(SNAPSHOT_OWNER, query.propertiesOf(SCHEDULER_NAMESPACE, CA_NAMESPACE, WORKFLOW_NAMESPACE))
-            .where(query.mediaPackageId(event.getMediaPackageId()).and(withOrganization(query))).run();
+        int deleted = 0;
+        for (String namespace: Arrays.asList(SCHEDULER_NAMESPACE, CA_NAMESPACE, WORKFLOW_NAMESPACE)) {
+          deleted += assetManager.deleteProperties(event.getMediaPackageId(), namespace);
+        }
         logger.debug("Deleted {} migrated properties", deleted);
       } catch (Exception e) {
         logger.error("Could not delete obsolete properties for event {}", event.getMediaPackageId());

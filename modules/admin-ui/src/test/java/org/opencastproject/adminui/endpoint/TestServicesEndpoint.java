@@ -21,7 +21,6 @@
 
 package org.opencastproject.adminui.endpoint;
 
-import org.opencastproject.mediapackage.MediaPackage;
 import org.opencastproject.mediapackage.MediaPackageBuilderImpl;
 import org.opencastproject.serviceregistry.api.HostRegistration;
 import org.opencastproject.serviceregistry.api.JaxbHostRegistration;
@@ -30,13 +29,10 @@ import org.opencastproject.serviceregistry.api.JaxbServiceStatistics;
 import org.opencastproject.serviceregistry.api.ServiceRegistry;
 import org.opencastproject.serviceregistry.api.ServiceState;
 import org.opencastproject.serviceregistry.api.ServiceStatistics;
-import org.opencastproject.workflow.api.WorkflowService;
 
 import org.easymock.EasyMock;
 import org.junit.Ignore;
 
-import java.net.URI;
-import java.net.URL;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -52,7 +48,6 @@ public class TestServicesEndpoint extends ServicesEndpoint {
   private static final String HOST4_NAME = "host4";
 
   private ServiceRegistry serviceRegistry;
-  private WorkflowService workflowService;
   private MediaPackageBuilderImpl mpBuilder;
 
   public TestServicesEndpoint() throws Exception {
@@ -60,10 +55,10 @@ public class TestServicesEndpoint extends ServicesEndpoint {
     this.serviceRegistry = EasyMock.createNiceMock(ServiceRegistry.class);
 
     List<HostRegistration> hosts = new ArrayList<HostRegistration>();
-    hosts.add(new JaxbHostRegistration(HOST1_NAME, "1.1.1.1", 100000, 8, 8, true, false));
-    hosts.add(new JaxbHostRegistration(HOST2_NAME, "1.1.1.2", 400000, 4, 8, true, true));
-    hosts.add(new JaxbHostRegistration(HOST3_NAME, "1.1.1.3", 200000, 2, 8, false, false));
-    hosts.add(new JaxbHostRegistration(HOST4_NAME, "1.1.1.4", 500000, 6, 8, true, true));
+    hosts.add(new JaxbHostRegistration(HOST1_NAME, "1.1.1.1", "node1", 100000, 8, 8, true, false));
+    hosts.add(new JaxbHostRegistration(HOST2_NAME, "1.1.1.2", "node2", 400000, 4, 8, true, true));
+    hosts.add(new JaxbHostRegistration(HOST3_NAME, "1.1.1.3", "node3", 200000, 2, 8, false, false));
+    hosts.add(new JaxbHostRegistration(HOST4_NAME, "1.1.1.4", "node4", 500000, 6, 8, true, true));
 
     JaxbServiceRegistration service1 = new JaxbServiceRegistration("service1", HOST1_NAME, "");
     JaxbServiceRegistration service2 = new JaxbServiceRegistration("service2", HOST1_NAME, "");
@@ -91,9 +86,4 @@ public class TestServicesEndpoint extends ServicesEndpoint {
     this.activate();
   }
 
-  private MediaPackage loadMpFromResource(String name) throws Exception {
-    URL test = ServicesEndpointTest.class.getResource("/" + name + ".xml");
-    URI publishedMediaPackageURI = test.toURI();
-    return mpBuilder.loadFromXml(publishedMediaPackageURI.toURL().openStream());
-  }
 }

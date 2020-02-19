@@ -38,6 +38,8 @@ import org.apache.commons.lang3.StringUtils;
 import org.osgi.service.cm.ConfigurationException;
 import org.osgi.service.cm.ManagedService;
 import org.osgi.service.component.ComponentContext;
+import org.osgi.service.component.annotations.Component;
+import org.osgi.service.component.annotations.Reference;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -59,6 +61,13 @@ import java.util.stream.Collectors;
 /**
  * An in-memory user directory containing the users and roles used by the system.
  */
+@Component(
+  property = {
+    "service.description=A user and role provider"
+  },
+  immediate = true,
+  service = { UserProvider.class, RoleProvider.class, ManagedService.class }
+)
 public class InMemoryUserAndRoleProvider implements UserProvider, RoleProvider, ManagedService {
 
   /** The logging facility */
@@ -228,7 +237,7 @@ public class InMemoryUserAndRoleProvider implements UserProvider, RoleProvider, 
       for (String roleName : SecurityConstants.GLOBAL_SYSTEM_ROLES) {
         roleList.add(new JaxbRole(roleName, jaxbOrganization));
       }
-      User digestUser = new JaxbUser(digestUsername, digestUserPass, DIGEST_USER_NAME, null, getName(), true,
+      User digestUser = new JaxbUser(digestUsername, digestUserPass, DIGEST_USER_NAME, null, getName(),
               jaxbOrganization, roleList);
       users.add(digestUser);
       logger.info("Added system digest user '{}' for organization '{}'", digestUsername, organization.getId());
@@ -251,7 +260,7 @@ public class InMemoryUserAndRoleProvider implements UserProvider, RoleProvider, 
 
       // Create the capture agent user
       logger.info("Creating the capture agent digest user '{}'", username);
-      User caUser = new JaxbUser(username, password, CAPTURE_AGENT_USER_NAME, null, getName(), true,
+      User caUser = new JaxbUser(username, password, CAPTURE_AGENT_USER_NAME, null, getName(),
               jaxbOrganization, caRoleList);
       users.add(caUser);
     }
@@ -263,16 +272,6 @@ public class InMemoryUserAndRoleProvider implements UserProvider, RoleProvider, 
   @Override
   public Iterator<User> getUsers() {
     return getOrganizationUsers().iterator();
-  }
-
-  /**
-   * {@inheritDoc}
-   *
-   * @see org.opencastproject.security.api.RoleProvider#getRoles()
-   */
-  @Override
-  public Iterator<Role> getRoles() {
-    return getOrganizationUsers().stream().flatMap(user -> user.getRoles().stream()).iterator();
   }
 
   /**
@@ -376,6 +375,7 @@ public class InMemoryUserAndRoleProvider implements UserProvider, RoleProvider, 
    * @param securityService
    *          the security service
    */
+  @Reference(name = "securityService")
   void setSecurityService(SecurityService securityService) {
     this.securityService = securityService;
   }

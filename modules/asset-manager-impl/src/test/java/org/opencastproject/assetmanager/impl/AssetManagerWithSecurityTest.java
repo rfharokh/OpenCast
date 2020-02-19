@@ -98,7 +98,7 @@ public class AssetManagerWithSecurityTest extends AbstractTieredStorageAssetMana
     EasyMock.expect(secSvc.getOrganization()).andAnswer(() -> currentUser.getOrganization()).anyTimes();
     EasyMock.replay(secSvc);
     //
-    return new AssetManagerWithSecurity(mkTieredStorageAM(), authSvc, secSvc);
+    return new AssetManagerWithSecurity(mkTieredStorageAM(), authSvc, secSvc, false, false, false);
   }
 
   @Override public AbstractAssetManager getAbstractAssetManager() {
@@ -283,7 +283,7 @@ public class AssetManagerWithSecurityTest extends AbstractTieredStorageAssetMana
       final boolean assertReadAccess, final boolean assertWriteAccess)
       throws Exception {
     // create a snapshot -> should always work (set assertAccess to true)
-    final Snapshot snapshot = createSnapshot(acl, writeUser, true);
+    createSnapshot(acl, writeUser, true);
     // Set assertAccess to true since querying does not yield a security exception.
     // Restricted records are simply filtered out.
     runWith(queryUser, true, new P1Lazy<Unit>() {

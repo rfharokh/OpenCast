@@ -20,8 +20,6 @@
  */
 package org.opencastproject.workflow.handler.workflow;
 
-import static java.lang.String.format;
-
 import org.opencastproject.job.api.JobContext;
 import org.opencastproject.mediapackage.Catalog;
 import org.opencastproject.mediapackage.EName;
@@ -64,7 +62,6 @@ import org.apache.commons.io.FilenameUtils;
 import org.apache.commons.io.IOUtils;
 import org.apache.commons.lang3.BooleanUtils;
 import org.apache.commons.lang3.StringUtils;
-import org.apache.commons.lang3.exception.ExceptionUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -75,8 +72,6 @@ import java.net.URI;
 import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
-import java.util.SortedMap;
-import java.util.TreeMap;
 import java.util.UUID;
 
 /**
@@ -86,9 +81,6 @@ public class SeriesWorkflowOperationHandler extends AbstractWorkflowOperationHan
 
   /** The logging facility */
   private static final Logger logger = LoggerFactory.getLogger(SeriesWorkflowOperationHandler.class);
-
-  /** The configuration options for this handler */
-  private static final SortedMap<String, String> CONFIG_OPTIONS;
 
   /** Name of the configuration option that provides the optional series identifier */
   public static final String SERIES_PROPERTY = "series";
@@ -170,29 +162,6 @@ public class SeriesWorkflowOperationHandler extends AbstractWorkflowOperationHan
     seriesCatalogUIAdapters.remove(catalogUIAdapter);
   }
 
-  static {
-    CONFIG_OPTIONS = new TreeMap<>();
-    CONFIG_OPTIONS.put(SERIES_PROPERTY, "The optional series identifier");
-    CONFIG_OPTIONS.put(ATTACH_PROPERTY, "The flavors of the series catalogs to attach to the mediapackage.");
-    CONFIG_OPTIONS.put(APPLY_ACL_PROPERTY, "Whether the ACL should be applied or not");
-    CONFIG_OPTIONS.put(COPY_METADATA_PROPERTY,
-            "A blank- or comma-separated list of metadata fields to copy to the episode catalog, "
-                    + "when they are defined in the series' catalog but not in the episode's");
-    CONFIG_OPTIONS.put(DEFAULT_NS_PROPERTY,
-            format("The default Namespace assumed when the metadata fields are not fully qualified. Defaults to '%s'",
-                    DublinCore.TERMS_NS_URI));
-  }
-
-  /**
-   * {@inheritDoc}
-   *
-   * @see org.opencastproject.workflow.api.WorkflowOperationHandler#getConfigurationOptions()
-   */
-  @Override
-  public SortedMap<String, String> getConfigurationOptions() {
-    return CONFIG_OPTIONS;
-  }
-
   /**
    * {@inheritDoc}
    *
@@ -237,8 +206,7 @@ public class SeriesWorkflowOperationHandler extends AbstractWorkflowOperationHan
       logger.warn("Not authorized to get series with identifier '{}' found, skip operation", seriesId);
       return createResult(mediaPackage, Action.SKIP);
     } catch (SeriesException e) {
-      logger.error("Unable to get series with identifier '{}', skip operation: {}", seriesId,
-              ExceptionUtils.getStackTrace(e));
+      logger.error("Unable to get series with identifier '{}', skip operation:", seriesId, e);
       throw new WorkflowOperationException(e);
     }
 
@@ -312,9 +280,9 @@ public class SeriesWorkflowOperationHandler extends AbstractWorkflowOperationHan
           flavor = MediaPackageElementFlavor.parseFlavor(flavorString);
         }
         for (SeriesCatalogUIAdapter a : adapters) {
-          MediaPackageElementFlavor adapterFlavor = MediaPackageElementFlavor.parseFlavor(a.getFlavor());
+          MediaPackageElementFlavor adapterFlavor = MediaPackageElementFlavor.parseFlavor(a.getFlavor().toString());
           if (flavor.matches(adapterFlavor)) {
-            if (MediaPackageElements.SERIES.eq(a.getFlavor())) {
+            if (MediaPackageElements.SERIES.eq(a.getFlavor().toString())) {
               addDublinCoreCatalog(series, MediaPackageElements.SERIES, mediaPackage);
             } else {
               try {
@@ -363,7 +331,7 @@ public class SeriesWorkflowOperationHandler extends AbstractWorkflowOperationHan
           MediaPackage mediaPackage) throws WorkflowOperationException {
     try (InputStream in = IOUtils.toInputStream(catalog.toXmlString(), "UTF-8")) {
       String elementId = UUID.randomUUID().toString();
-      URI catalogUrl = workspace.put(mediaPackage.getIdentifier().compact(), elementId, "dublincore.xml", in);
+      URI catalogUrl = workspace.put(mediaPackage.getIdentifier().toString(), elementId, "dublincore.xml", in);
       logger.info("Adding catalog with flavor {} to mediapackage {}", flavor, mediaPackage);
       MediaPackageElement mpe = mediaPackage.add(catalogUrl, MediaPackageElement.Type.Catalog, flavor);
       mpe.setIdentifier(elementId);

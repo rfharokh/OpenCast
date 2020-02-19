@@ -37,14 +37,13 @@ import org.opencastproject.security.api.TrustedHttpClient;
 import org.opencastproject.security.api.TrustedHttpClientException;
 import org.opencastproject.security.api.User;
 import org.opencastproject.security.api.UserDirectoryService;
-import org.opencastproject.serviceregistry.api.ServiceRegistration;
 import org.opencastproject.serviceregistry.api.ServiceRegistryException;
+import org.opencastproject.serviceregistry.api.SystemLoad;
 import org.opencastproject.systems.OpencastConstants;
 import org.opencastproject.util.NotFoundException;
 import org.opencastproject.util.jmx.JmxUtil;
 import org.opencastproject.util.persistence.PersistenceUtil;
 
-import org.apache.commons.lang3.StringUtils;
 import org.apache.http.HttpResponse;
 import org.apache.http.HttpStatus;
 import org.apache.http.HttpVersion;
@@ -86,12 +85,14 @@ public class ServiceRegistryJpaImplTest {
   private static final String TEST_SERVICE = "ingest";
   private static final String TEST_SERVICE_2 = "compose";
   private static final String TEST_SERVICE_3 = "org.opencastproject.workflow";
+  private static final String TEST_SERVICE_FAIRNESS = "fairness";
   private static final String TEST_OPERATION = "ingest";
   private static final String TEST_PATH = "/ingest";
   private static final String TEST_PATH_2 = "/compose";
   private static final String TEST_PATH_3 = "/workflow";
   private static final String TEST_HOST = "http://localhost:8080";
   private static final String TEST_HOST_OTHER = "http://otherhost:8080";
+  private static final String TEST_HOST_THIRD = "http://thirdhost:8080";
 
   @Before
   public void setUp() throws Exception {
@@ -109,9 +110,7 @@ public class ServiceRegistryJpaImplTest {
     for (ObjectInstance mbean : serviceRegistryJpaImpl.jmxBeans) {
       JmxUtil.unregisterMXBean(mbean);
     }
-    for (ServiceRegistration service : serviceRegistryJpaImpl.getServiceRegistrations()) {
-      serviceRegistryJpaImpl.unRegisterService(service.getServiceType(), service.getHost());
-    }
+    // Deactivate unregisters services
     serviceRegistryJpaImpl.deactivate();
   }
 
@@ -161,7 +160,7 @@ public class ServiceRegistryJpaImplTest {
     serviceRegistryJpaImpl.setUserDirectoryService(userDirectoryService);
 
     final Capture<HttpUriRequest> request = EasyMock.newCapture();
-    final BasicHttpResponse successRespone = new BasicHttpResponse(
+    final BasicHttpResponse successResponse = new BasicHttpResponse(
             new BasicStatusLine(new HttpVersion(1, 1), HttpStatus.SC_NO_CONTENT, "No message"));
     final BasicHttpResponse unavailableResponse = new BasicHttpResponse(
             new BasicStatusLine(new HttpVersion(1, 1), HttpStatus.SC_SERVICE_UNAVAILABLE, "No message"));
@@ -178,7 +177,7 @@ public class ServiceRegistryJpaImplTest {
         if (request.getValue().getURI().toString().contains(TEST_PATH_3))
           return unavailableResponse;
 
-        return successRespone;
+        return successResponse;
       }
     }).anyTimes();
     EasyMock.replay(trustedHttpClient);
@@ -187,11 +186,15 @@ public class ServiceRegistryJpaImplTest {
 
   private void registerTestHostAndService() throws ServiceRegistryException {
     // register the hosts, service must be activated at this point
-    serviceRegistryJpaImpl.registerHost(TEST_HOST, "127.0.0.1", 1024, 1, 1);
-    serviceRegistryJpaImpl.registerHost(TEST_HOST_OTHER, "127.0.0.1", 1024, 1, 2);
+    serviceRegistryJpaImpl.registerHost(TEST_HOST, "127.0.0.1", "test", 1024, 1, 1);
+    serviceRegistryJpaImpl.registerHost(TEST_HOST_OTHER, "127.0.0.1", "test_other", 1024, 1, 2);
+    serviceRegistryJpaImpl.registerHost(TEST_HOST_THIRD, "127.0.0.1", "test_third", 1024, 1, 4);
     serviceRegistryJpaImpl.registerService(TEST_SERVICE, TEST_HOST, TEST_PATH);
     serviceRegistryJpaImpl.registerService(TEST_SERVICE, TEST_HOST_OTHER, TEST_PATH);
     serviceRegistryJpaImpl.registerService(TEST_SERVICE_2, TEST_HOST, TEST_PATH_2);
+    serviceRegistryJpaImpl.registerService(TEST_SERVICE_FAIRNESS, TEST_HOST, TEST_PATH_2);
+    serviceRegistryJpaImpl.registerService(TEST_SERVICE_FAIRNESS, TEST_HOST_OTHER, TEST_PATH_2);
+    serviceRegistryJpaImpl.registerService(TEST_SERVICE_FAIRNESS, TEST_HOST_THIRD, TEST_PATH_2);
   }
 
   private void setupBundleContext() throws InvalidSyntaxException {
@@ -254,7 +257,7 @@ public class ServiceRegistryJpaImplTest {
     serviceRegistryJpaImpl.scheduledExecutor = Executors.newScheduledThreadPool(1);
     serviceRegistryJpaImpl.activate(null);
     Hashtable<String, String> properties = new Hashtable<>();
-    properties.put("dispatchinterval", "1000");
+    properties.put("dispatch.interval", "1");
     serviceRegistryJpaImpl.updated(properties);
     registerTestHostAndService();
     Job testJob = serviceRegistryJpaImpl.createJob(TEST_HOST, TEST_SERVICE, TEST_OPERATION, null, null, true, null);
@@ -274,7 +277,7 @@ public class ServiceRegistryJpaImplTest {
     serviceRegistryJpaImpl.scheduledExecutor = Executors.newScheduledThreadPool(1);
     serviceRegistryJpaImpl.activate(null);
     Hashtable<String, String> properties = new Hashtable<>();
-    properties.put("dispatchinterval", "1000");
+    properties.put("dispatch.interval", "1");
     serviceRegistryJpaImpl.updated(properties);
     registerTestHostAndService();
     serviceRegistryJpaImpl.registerService(TEST_SERVICE_3, TEST_HOST, TEST_PATH_3);
@@ -286,6 +289,7 @@ public class ServiceRegistryJpaImplTest {
     } catch (Exception e) {
       Assert.assertEquals(0, serviceRegistryJpaImpl.dispatchPriorityList.size());
     }
+
   }
 
   @Test
@@ -295,7 +299,7 @@ public class ServiceRegistryJpaImplTest {
     serviceRegistryJpaImpl.scheduledExecutor = Executors.newScheduledThreadPool(1);
     serviceRegistryJpaImpl.activate(null);
     Hashtable<String, String> properties = new Hashtable<>();
-    properties.put("dispatchinterval", "1000");
+    properties.put("dispatch.interval", "1");
     serviceRegistryJpaImpl.updated(properties);
     registerTestHostAndService();
     serviceRegistryJpaImpl.dispatchPriorityList.put(0L, TEST_HOST);
@@ -309,31 +313,54 @@ public class ServiceRegistryJpaImplTest {
     }
   }
 
+  private void assertHostloads(Job j, Float a, Float b, Float c) throws Exception {
+    Thread.sleep(1100); //1100 is 100ms more than the minimum job dispatch interval.  Setting this lower causes race conditions.
+    Job k = serviceRegistryJpaImpl.getJob(j.getId());
+    k.setStatus(Status.RUNNING);
+    serviceRegistryJpaImpl.updateJob(k);
+    SystemLoad hostloads = serviceRegistryJpaImpl.getHostLoads(emf.createEntityManager());
+    Assert.assertTrue(String.format("Host load is incorrect, should be %f, is %f", a, hostloads.get(TEST_HOST).getCurrentLoad()),
+            hostloads.get(TEST_HOST).getCurrentLoad() - a >= 0.0f);
+    Assert.assertTrue(String.format("Host load is incorrect, should be %f, is %f", a, hostloads.get(TEST_HOST).getCurrentLoad()),
+            hostloads.get(TEST_HOST).getCurrentLoad() - a < 0.1f);
+    Assert.assertTrue(String.format("Host load is incorrect, should be %f, is %f", b, hostloads.get(TEST_HOST_OTHER).getCurrentLoad()),
+            hostloads.get(TEST_HOST_OTHER).getCurrentLoad() - b >= 0.0f);
+    Assert.assertTrue(String.format("Host load is incorrect, should be %f, is %f", b, hostloads.get(TEST_HOST_OTHER).getCurrentLoad()),
+            hostloads.get(TEST_HOST_OTHER).getCurrentLoad() - b < 0.1f);
+    Assert.assertTrue(String.format("Host load is incorrect, should be %f, is %f", c, hostloads.get(TEST_HOST_THIRD).getCurrentLoad()),
+            hostloads.get(TEST_HOST_THIRD).getCurrentLoad() - c >= 0.0f);
+    Assert.assertTrue(String.format("Host load is incorrect, should be %f, is %f", c, hostloads.get(TEST_HOST_THIRD).getCurrentLoad()),
+            hostloads.get(TEST_HOST_THIRD).getCurrentLoad() - c < 0.1f);
+  }
+
   @Test
-  public void testIgnoreHostsInPriorityList() throws Exception {
+  public void testJobDispatchingFairness() throws Exception {
     if (serviceRegistryJpaImpl.scheduledExecutor != null)
       serviceRegistryJpaImpl.scheduledExecutor.shutdown();
     serviceRegistryJpaImpl.scheduledExecutor = Executors.newScheduledThreadPool(1);
     serviceRegistryJpaImpl.activate(null);
     Hashtable<String, String> properties = new Hashtable<>();
-    properties.put("dispatchinterval", "1000");
+    properties.put("dispatch.interval", "1");
     serviceRegistryJpaImpl.updated(properties);
     registerTestHostAndService();
-    Job testJob = serviceRegistryJpaImpl.createJob(TEST_HOST, TEST_SERVICE_2, TEST_OPERATION, null, null, true, null);
-    Job testJob2 = serviceRegistryJpaImpl.createJob(TEST_HOST, TEST_SERVICE, TEST_OPERATION, null, null, true, null);
-    serviceRegistryJpaImpl.dispatchPriorityList.put(testJob2.getId(), TEST_HOST);
-    JobBarrier barrier = new JobBarrier(null, serviceRegistryJpaImpl, testJob, testJob2);
-    try {
-      barrier.waitForJobs(2000);
-      Assert.fail();
-    } catch (Exception e) {
-      Assert.assertTrue(StringUtils.isBlank(serviceRegistryJpaImpl.getJob(testJob.getId()).getProcessingHost()));
-      Assert.assertTrue(StringUtils.isNotBlank(serviceRegistryJpaImpl.getJob(testJob2.getId()).getProcessingHost()));
-      Assert.assertEquals(1, serviceRegistryJpaImpl.dispatchPriorityList.size());
-      String blockingHost = serviceRegistryJpaImpl.dispatchPriorityList.get(testJob2.getId());
-      Assert.assertEquals(TEST_HOST, blockingHost);
-    }
+
+    Job j = serviceRegistryJpaImpl.createJob(TEST_HOST, TEST_SERVICE_FAIRNESS, TEST_OPERATION, null, null, true, null, 1.0f);
+    assertHostloads(j, 0.0f, 0.0f, 1.0f);
+    j = serviceRegistryJpaImpl.createJob(TEST_HOST, TEST_SERVICE_FAIRNESS, TEST_OPERATION, null, null, true, null, 1.0f);
+    assertHostloads(j, 0.0f, 1.0f, 1.0f);
+    j = serviceRegistryJpaImpl.createJob(TEST_HOST, TEST_SERVICE_FAIRNESS, TEST_OPERATION, null, null, true, null, 1.0f);
+    assertHostloads(j, 1.0f, 1.0f, 1.0f);
+    j = serviceRegistryJpaImpl.createJob(TEST_HOST, TEST_SERVICE_FAIRNESS, TEST_OPERATION, null, null, true, null, 1.0f);
+    assertHostloads(j,1.0f, 1.0f, 2.0f);
+    j = serviceRegistryJpaImpl.createJob(TEST_HOST, TEST_SERVICE_FAIRNESS, TEST_OPERATION, null, null, true, null, 1.0f);
+    assertHostloads(j, 1.0f, 1.0f, 3.0f);
+    j = serviceRegistryJpaImpl.createJob(TEST_HOST, TEST_SERVICE_FAIRNESS, TEST_OPERATION, null, null, true, null, 1.0f);
+    assertHostloads(j, 1.0f, 2.0f, 3.0f);
+    j = serviceRegistryJpaImpl.createJob(TEST_HOST, TEST_SERVICE_FAIRNESS, TEST_OPERATION, null, null, true, null, 1.0f);
+    assertHostloads(j,1.0f, 2.0f, 4.0f);
+    serviceRegistryJpaImpl.deactivate();
   }
+
 
   @Test
   public void testDispatchingJobsHigherMaxLoad() throws Exception {
@@ -342,18 +369,22 @@ public class ServiceRegistryJpaImplTest {
     serviceRegistryJpaImpl.scheduledExecutor = Executors.newScheduledThreadPool(1);
     serviceRegistryJpaImpl.activate(null);
     Hashtable<String, String> properties = new Hashtable<>();
-    properties.put("dispatchinterval", "1000");
+    properties.put("dispatch.interval", "1");
     serviceRegistryJpaImpl.updated(properties);
     registerTestHostAndService();
-    Job testJob = serviceRegistryJpaImpl.createJob(TEST_HOST, TEST_SERVICE, TEST_OPERATION, null, null, true, null,
+    Job testJob = serviceRegistryJpaImpl.createJob(TEST_HOST, TEST_SERVICE_FAIRNESS, TEST_OPERATION, null, null, true, null,
             10.0f);
     JobBarrier barrier = new JobBarrier(null, serviceRegistryJpaImpl, testJob);
     try {
       barrier.waitForJobs(2000);
+      // We should never successfully complete the job, so if we get here then something is wrong
       Assert.fail();
     } catch (Exception e) {
       testJob = serviceRegistryJpaImpl.getJob(testJob.getId());
-      Assert.assertEquals(TEST_HOST_OTHER, testJob.getProcessingHost());
+      // Some explanation here: If the load exceeds the global maximum node load (ie, jobLoad > all individual node max
+      // loads), then we dispatch to the biggest, even if it's not going to normally accept the job.  That node may still
+      // reject the job, but that's AbstractJobProducer's job, not the service registry's
+      Assert.assertEquals(TEST_HOST_THIRD, testJob.getProcessingHost());
     }
   }
 

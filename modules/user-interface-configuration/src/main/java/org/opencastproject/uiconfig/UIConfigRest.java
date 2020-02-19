@@ -25,9 +25,6 @@ import org.opencastproject.security.api.SecurityService;
 import org.opencastproject.util.ConfigurationException;
 import org.opencastproject.util.MimeTypes;
 import org.opencastproject.util.NotFoundException;
-import org.opencastproject.util.PathSupport;
-import org.opencastproject.util.RestUtil;
-import org.opencastproject.util.data.Option;
 import org.opencastproject.util.doc.rest.RestParameter;
 import org.opencastproject.util.doc.rest.RestQuery;
 import org.opencastproject.util.doc.rest.RestResponse;
@@ -42,8 +39,8 @@ import java.io.File;
 import java.io.FileInputStream;
 import java.io.FileNotFoundException;
 import java.io.IOException;
-import java.io.InputStream;
 import java.nio.file.AccessDeniedException;
+import java.nio.file.Paths;
 
 import javax.servlet.http.HttpServletResponse;
 import javax.ws.rs.GET;
@@ -65,13 +62,13 @@ import javax.ws.rs.core.Response;
                 + "not working and is either restarting or has failed",
         "A status code 500 means a general failure has occurred which is not recoverable and was not anticipated."
                 + "In other words, there is a bug! You should file an error report with your server logs from the time"
-                + "when the error occurred: <a href=\"https://opencast.jira.com\">Opencast Issue Tracker</a>" })
+                + "when the error occurred: <a href=\"https://github.com/opencast/opencast/issues\">Opencast Issue Tracker</a>" })
 public class UIConfigRest {
   /** The logger */
   private static final Logger logger = LoggerFactory.getLogger(UIConfigRest.class);
 
-  /** Konfiguration KEY for the ui config folder */
-  private static final String UI_CONFIG_FOLDER_PROPERTY = "org.opencastproject.uiconfig.folder";
+  /** Configuration key for the ui config folder */
+  static final String UI_CONFIG_FOLDER_PROPERTY = "org.opencastproject.uiconfig.folder";
 
   /** Default Path for the ui configuration folder (relative to ${karaf.etc}) */
   private static final String UI_CONFIG_FOLDER_DEFAULT = "ui-config";
@@ -126,10 +123,11 @@ public class UIConfigRest {
                @RestResponse(description = "if the configuration file doesn't exist", responseCode = HttpServletResponse.SC_NOT_FOUND),
              },
              returnDescription = "")
-  public Response getConfigFile(@PathParam("component") String component, @PathParam("filename") String filename) throws IOException, NotFoundException {
-    String orgId = securityService.getOrganization().getId();
+  public Response getConfigFile(@PathParam("component") String component, @PathParam("filename") String filename)
+          throws IOException, NotFoundException {
+    final String orgId = securityService.getOrganization().getId();
+    final File configFile = Paths.get(uiConfigFolder, orgId, component, filename).toFile();
 
-    File configFile = new File(PathSupport.concat(new String[] { uiConfigFolder, orgId, component, filename }));
     try {
       String basePath = new File(uiConfigFolder, orgId).getCanonicalPath();
       String configFileCanPath = configFile.getCanonicalPath();
@@ -141,11 +139,11 @@ public class UIConfigRest {
         throw new AccessDeniedException(configFileCanPath);
       }
 
-      InputStream configFileStream = new FileInputStream(configFile);
-      long fileLength = configFile.length();
-
       // It is safe to pass the InputStream without closing it, JAX-RS takes care of that
-      return RestUtil.R.ok(configFileStream, getMimeType(filename), Option.some(fileLength), Option.some(filename));
+      return Response.ok(new FileInputStream(configFile))
+              .header("Content-Length", configFile.length())
+              .header("Content-Type", MimeTypes.getMimeType(filename))
+              .build();
     }
     catch (FileNotFoundException e)
     {
@@ -154,14 +152,4 @@ public class UIConfigRest {
     }
   }
 
-  private Option<String> getMimeType(final String filename) {
-    Option<String> mimeType;
-    try {
-      mimeType = Option.some(MimeTypes.fromString(filename).toString());
-    } catch (Exception e) {
-      logger.warn("Unable to detect the mime type of file {}", filename);
-      mimeType = Option.<String> none();
-    }
-    return mimeType;
-  }
 }

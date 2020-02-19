@@ -21,7 +21,6 @@
 
 package org.opencastproject.adminui.endpoint;
 
-import org.opencastproject.mediapackage.MediaPackage;
 import org.opencastproject.mediapackage.MediaPackageBuilderImpl;
 import org.opencastproject.serviceregistry.api.HostRegistration;
 import org.opencastproject.serviceregistry.api.JaxbHostRegistration;
@@ -33,8 +32,6 @@ import org.opencastproject.serviceregistry.api.ServiceStatistics;
 import org.easymock.EasyMock;
 import org.junit.Ignore;
 
-import java.net.URI;
-import java.net.URL;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -57,10 +54,10 @@ public class TestServerEndpoint extends ServerEndpoint {
     this.serviceRegistry = EasyMock.createNiceMock(ServiceRegistry.class);
 
     List<HostRegistration> hosts = new ArrayList<HostRegistration>();
-    hosts.add(new JaxbHostRegistration(HOST1, "1.1.1.1", 100000, 8, 8, true, false));
-    hosts.add(new JaxbHostRegistration(HOST2, "1.1.1.2", 400000, 4, 8, true, true));
-    hosts.add(new JaxbHostRegistration(HOST3, "1.1.1.3", 200000, 2, 8, false, false));
-    hosts.add(new JaxbHostRegistration(HOST4, "1.1.1.4", 500000, 6, 8, true, true));
+    hosts.add(new JaxbHostRegistration(HOST1, "1.1.1.1", "node1", 100000, 8, 8, true, false));
+    hosts.add(new JaxbHostRegistration(HOST2, "1.1.1.2", "node2", 400000, 4, 8, true, true));
+    hosts.add(new JaxbHostRegistration(HOST3, "1.1.1.3", "node3", 200000, 2, 8, false, false));
+    hosts.add(new JaxbHostRegistration(HOST4, "1.1.1.4", "node4", 500000, 6, 8, true, true));
 
     JaxbServiceRegistration service1 = new JaxbServiceRegistration("test", HOST1, "");
     JaxbServiceRegistration service2 = new JaxbServiceRegistration("test", HOST2, "");
@@ -82,9 +79,4 @@ public class TestServerEndpoint extends ServerEndpoint {
     this.activate(null);
   }
 
-  private MediaPackage loadMpFromResource(String name) throws Exception {
-    URL test = ServerEndpointTest.class.getResource("/" + name + ".xml");
-    URI publishedMediaPackageURI = test.toURI();
-    return mpBuilder.loadFromXml(publishedMediaPackageURI.toURL().openStream());
-  }
 }

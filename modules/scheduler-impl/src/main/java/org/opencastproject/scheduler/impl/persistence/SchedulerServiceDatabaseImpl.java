@@ -43,6 +43,7 @@ import javax.persistence.EntityManager;
 import javax.persistence.EntityManagerFactory;
 import javax.persistence.EntityTransaction;
 import javax.persistence.Query;
+import javax.persistence.TypedQuery;
 
 /**
  * Implements {@link SchedulerServiceDatabase}.
@@ -158,9 +159,8 @@ public class SchedulerServiceDatabaseImpl implements SchedulerServiceDatabase {
   @Override
   public void storeEvent(String mediapackageId, String organizationId, Opt<String> captureAgentId, Opt<Date> start,
           Opt<Date> end, Opt<String> source, Opt<String> recordingState, Opt<Long> recordingLastHeard,
-          Opt<String> reviewStatus, Opt<Date> reviewDate, Opt<String> presenters, Opt<Boolean> optOut,
-          Opt<Date> lastModifiedDate, Opt<String> checksum, Opt<Map<String, String>> workflowProperties,
-          Opt<Map<String, String>> caProperties
+          Opt<String> presenters, Opt<Date> lastModifiedDate, Opt<String> checksum, Opt<Map<String,
+          String>> workflowProperties, Opt<Map<String, String>> caProperties
   ) throws SchedulerServiceDatabaseException {
     EntityManager em = null;
     EntityTransaction tx = null;
@@ -190,17 +190,8 @@ public class SchedulerServiceDatabaseImpl implements SchedulerServiceDatabase {
       if (recordingLastHeard.isSome()) {
         entity.setRecordingLastHeard(recordingLastHeard.get());
       }
-      if (reviewStatus.isSome()) {
-        entity.setReviewStatus(reviewStatus.get());
-      }
-      if (reviewDate.isSome()) {
-        entity.setReviewDate(reviewDate.get());
-      }
       if (presenters.isSome()) {
         entity.setPresenters(presenters.get());
-      }
-      if (optOut.isSome()) {
-        entity.setOptOut(optOut.get());
       }
       if (lastModifiedDate.isSome()) {
         entity.setLastModifiedDate(lastModifiedDate.get());
@@ -332,6 +323,23 @@ public class SchedulerServiceDatabaseImpl implements SchedulerServiceDatabase {
     } catch (Exception e) {
       if (tx.isActive())
         tx.rollback();
+      throw new SchedulerServiceDatabaseException(e);
+    } finally {
+      if (em != null)
+        em.close();
+    }
+  }
+
+  @Override
+  public List<ExtendedEventDto> getEvents() throws SchedulerServiceDatabaseException {
+    EntityManager em = null;
+    final String organization = securityService.getOrganization().getId();
+    try {
+      em = emf.createEntityManager();
+      TypedQuery<ExtendedEventDto> query = em.createNamedQuery("ExtendedEvent.findAll", ExtendedEventDto.class)
+                      .setParameter("org", organization);
+      return query.getResultList();
+    } catch (Exception e) {
       throw new SchedulerServiceDatabaseException(e);
     } finally {
       if (em != null)

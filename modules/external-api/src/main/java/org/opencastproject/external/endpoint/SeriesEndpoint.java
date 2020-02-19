@@ -29,6 +29,7 @@ import static com.entwinemedia.fn.data.json.Jsons.v;
 import static javax.servlet.http.HttpServletResponse.SC_BAD_REQUEST;
 import static org.apache.commons.lang3.StringUtils.isBlank;
 import static org.apache.commons.lang3.StringUtils.trimToNull;
+import static org.opencastproject.external.common.ApiVersion.VERSION_1_2_0;
 import static org.opencastproject.util.DateTimeSupport.toUTC;
 import static org.opencastproject.util.RestUtil.getEndpointUrl;
 import static org.opencastproject.util.doc.rest.RestParameter.Type.STRING;
@@ -103,6 +104,7 @@ import java.util.TreeMap;
 
 import javax.servlet.http.HttpServletResponse;
 import javax.ws.rs.DELETE;
+import javax.ws.rs.DefaultValue;
 import javax.ws.rs.FormParam;
 import javax.ws.rs.GET;
 import javax.ws.rs.HeaderParam;
@@ -117,7 +119,7 @@ import javax.ws.rs.core.Response;
 import javax.ws.rs.core.Response.Status;
 
 @Path("/")
-@Produces({ ApiMediaType.JSON, ApiMediaType.VERSION_1_0_0, ApiMediaType.VERSION_1_1_0 })
+@Produces({ ApiMediaType.JSON, ApiMediaType.VERSION_1_0_0, ApiMediaType.VERSION_1_1_0, ApiMediaType.VERSION_1_2_0, ApiMediaType.VERSION_1_3_0, ApiMediaType.VERSION_1_4_0 })
 @RestService(name = "externalapiseries", title = "External API Series Service", notes = {}, abstractText = "Provides resources and operations related to the series")
 public class SeriesEndpoint {
 
@@ -363,8 +365,9 @@ public class SeriesEndpoint {
                 f("created", v(createdDate != null ? toUTC(createdDate.getTime()) : null, BLANK)),
                 f("contributors", arr($(s.getContributors()).map(Functions.stringToJValue))),
                 f("organizers", arr($(s.getOrganizers()).map(Functions.stringToJValue))),
-                f("publishers", arr($(s.getPublishers()).map(Functions.stringToJValue))),
-                f("opt_out", v(s.isOptedOut())));
+                // For compatibility (MH-13405)
+                f("opt_out", false),
+                f("publishers", arr($(s.getPublishers()).map(Functions.stringToJValue))));
       }
       else {
         responseContent = obj(
@@ -377,11 +380,12 @@ public class SeriesEndpoint {
                 f("created", v(createdDate != null ? toUTC(createdDate.getTime()) : null, BLANK)),
                 f("contributors", arr($(s.getContributors()).map(Functions.stringToJValue))),
                 f("organizers", arr($(s.getOrganizers()).map(Functions.stringToJValue))),
+                // For compatibility (MH-13405)
+                f("opt_out", false),
                 f("publishers", arr($(s.getPublishers()).map(Functions.stringToJValue))),
                 f("language", v(s.getLanguage(), BLANK)),
                 f("license", v(s.getLicense(), BLANK)),
-                f("rightsholder", v(s.getRightsHolder(), BLANK)),
-                f("opt_out", v(s.isOptedOut())));
+                f("rightsholder", v(s.getRightsHolder(), BLANK)));
       }
       return ApiResponses.Json.ok(requestedVersion, responseContent);
     }
@@ -425,7 +429,7 @@ public class SeriesEndpoint {
     for (SeriesCatalogUIAdapter adapter : catalogUIAdapters) {
       final Opt<MetadataCollection> optSeriesMetadata = adapter.getFields(id);
       if (optSeriesMetadata.isSome()) {
-        metadataList.add(adapter.getFlavor(), adapter.getUITitle(), optSeriesMetadata.get());
+        metadataList.add(adapter.getFlavor().toString(), adapter.getUITitle(), optSeriesMetadata.get());
       }
     }
     MetadataCollection collection = getSeriesMetadata(optSeries.get());
@@ -559,7 +563,7 @@ public class SeriesEndpoint {
     if (StringUtils.trimToNull(type) == null) {
       return false;
     }
-    MediaPackageElementFlavor catalogFlavor = MediaPackageElementFlavor.parseFlavor(catalog.getFlavor());
+    MediaPackageElementFlavor catalogFlavor = MediaPackageElementFlavor.parseFlavor(catalog.getFlavor().toString());
     try {
       MediaPackageElementFlavor flavor = MediaPackageElementFlavor.parseFlavor(type);
       return flavor.equals(catalogFlavor);
@@ -721,7 +725,12 @@ public class SeriesEndpoint {
     for (final Series series : indexService.getSeries(id, externalIndex)) {
       // The ACL is stored as JSON string in the index. Parse it and extract the part we want to have in the API.
       JSONObject acl = (JSONObject) parser.parse(series.getAccessPolicy());
-      return ApiResponses.Json.ok(requestedVersion, ((JSONArray) ((JSONObject) acl.get("acl")).get("ace")).toJSONString());
+
+      if (!((JSONObject) acl.get("acl")).containsKey("ace")) {
+        return ApiResponses.notFound("Cannot find acl for series with id '%s'.", id);
+      } else {
+        return ApiResponses.Json.ok(requestedVersion, ((JSONArray) ((JSONObject) acl.get("acl")).get("ace")).toJSONString());
+      }
     }
 
     return ApiResponses.notFound("Cannot find an series with id '%s'.", id);
@@ -882,7 +891,7 @@ public class SeriesEndpoint {
       SeriesCatalogUIAdapter adapter = null;
       for (SeriesCatalogUIAdapter seriesCatalogUIAdapter : indexService.getSeriesCatalogUIAdapters()) {
         MediaPackageElementFlavor catalogFlavor = MediaPackageElementFlavor
-                .parseFlavor(seriesCatalogUIAdapter.getFlavor());
+                .parseFlavor(seriesCatalogUIAdapter.getFlavor().toString());
         if (catalogFlavor.equals(flavor)) {
           adapter = seriesCatalogUIAdapter;
           collection = seriesCatalogUIAdapter.getRawFields();
@@ -933,13 +942,21 @@ public class SeriesEndpoint {
   @Path("{seriesId}/acl")
   @RestQuery(name = "updateseriesacl", description = "Updates a series' access policy.", returnDescription = "", pathParameters = {
           @RestParameter(name = "seriesId", description = "The series id", isRequired = true, type = STRING) }, restParameters = {
-                  @RestParameter(name = "acl", isRequired = true, description = "Access policy", type = STRING) }, reponses = {
+                  @RestParameter(name = "acl", isRequired = true, description = "Access policy", type = STRING),
+                  @RestParameter(name = "override", isRequired = false, description = "If true the series ACL will take precedence over any existing episode ACL", type = STRING)}, reponses = {
                           @RestResponse(description = "The access control list for the specified series is updated.", responseCode = HttpServletResponse.SC_OK),
                           @RestResponse(description = "The specified series does not exist.", responseCode = HttpServletResponse.SC_NOT_FOUND) })
   public Response updateSeriesAcl(@HeaderParam("Accept") String acceptHeader, @PathParam("seriesId") String seriesID,
-          @FormParam("acl") String aclJson) throws NotFoundException, SeriesException, UnauthorizedException {
+          @FormParam("acl") String aclJson, @DefaultValue("false") @FormParam("override") boolean override)
+          throws NotFoundException, SeriesException, UnauthorizedException {
     if (isBlank(aclJson))
       return R.badRequest("Missing form parameter 'acl'");
+
+    final ApiVersion requestedVersion = ApiMediaType.parse(acceptHeader).getVersion();
+    if (requestedVersion.isSmallerThan(VERSION_1_2_0)) {
+      // override was added in version 1.2.0 and should be ignored for smaller versions
+      override = false;
+    }
 
     JSONParser parser = new JSONParser();
     JSONArray acl;
@@ -958,7 +975,7 @@ public class SeriesEndpoint {
       }
     }).toList();
 
-    seriesService.updateAccessControl(seriesID, new AccessControlList(accessControlEntries));
+    seriesService.updateAccessControl(seriesID, new AccessControlList(accessControlEntries), override);
     return ApiResponses.Json.ok(acceptHeader, aclJson);
   }
 

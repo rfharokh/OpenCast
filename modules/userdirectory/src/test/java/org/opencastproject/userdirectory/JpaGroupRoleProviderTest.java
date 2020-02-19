@@ -178,14 +178,10 @@ public class JpaGroupRoleProviderTest {
   public void testRemoveGroupNotAllowedAsNonAdminUser() throws NotFoundException, Exception {
     JpaGroup group = new JpaGroup("test", org1, "Test", "Test group", Collections.set(
             new JpaRole(SecurityConstants.GLOBAL_ADMIN_ROLE, org1)));
-    try {
-      provider.addGroup(group);
-      Group loadGroup = provider.loadGroup(group.getGroupId(), group.getOrganization().getId());
-      assertNotNull(loadGroup);
-      assertEquals(group.getGroupId(), loadGroup.getGroupId());
-    } catch (Exception e) {
-      fail("The group should be added");
-    }
+    provider.addGroup(group);
+    Group loadGroup = provider.loadGroup(group.getGroupId(), group.getOrganization().getId());
+    assertNotNull(loadGroup);
+    assertEquals(group.getGroupId(), loadGroup.getGroupId());
 
     JpaUser user = new JpaUser("user", "pass1", org1, "User", "user@localhost", "opencast", true,
             Collections.set(new JpaRole("ROLE_USER", org1)));
@@ -221,38 +217,6 @@ public class JpaGroupRoleProviderTest {
     // duplicate group, but add group does an update so it will pass
     provider.addGroup(new JpaGroup("test1", org1, "Test 1", "Test group 1", roles1, members));
     assertEquals("Test 1", provider.loadGroup("test1", org1.getId()).getName());
-  }
-
-  @Test
-  @SuppressWarnings("unchecked")
-  public void testRoles() throws Exception {
-    Set<JpaRole> authorities = new HashSet<JpaRole>();
-    authorities.add(new JpaRole("ROLE_ASTRO_101_SPRING_2011_STUDENT", org1));
-    authorities.add(new JpaRole("ROLE_ASTRO_109_SPRING_2012_STUDENT", org1));
-    Set<String> members = new HashSet<String>();
-    members.add("admin");
-
-    JpaGroup group = new JpaGroup("test", org1, "Test", "Test group", authorities, members);
-    provider.addGroup(group);
-
-    authorities.clear();
-    authorities.add(new JpaRole("ROLE_ASTRO_122_SPRING_2011_STUDENT", org1));
-    authorities.add(new JpaRole("ROLE_ASTRO_124_SPRING_2012_STUDENT", org1));
-
-    JpaGroup group2 = new JpaGroup("test2", org1, "Test2", "Test 2 group", authorities, members);
-    provider.addGroup(group2);
-
-    authorities.clear();
-    authorities.add(new JpaRole("ROLE_ASTRO_134_SPRING_2011_STUDENT", org2));
-    authorities.add(new JpaRole("ROLE_ASTRO_144_SPRING_2012_STUDENT", org2));
-
-    JpaGroup group3 = new JpaGroup("test2", org2, "Test2", "Test 2 group", authorities, members);
-    provider.addGroup(group3);
-
-    List<Role> roles = IteratorUtils.toList(provider.getRoles());
-    Assert.assertEquals("There should be four role", 6, roles.size());
-    roles.contains(new JpaRole(group.getRole(), org1));
-    roles.contains(new JpaRole(group2.getRole(), org1));
   }
 
   @Test

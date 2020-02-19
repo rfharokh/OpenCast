@@ -21,7 +21,6 @@
 package org.opencastproject.assetmanager.impl;
 
 import static com.entwinemedia.fn.fns.Booleans.eq;
-import static java.lang.String.format;
 
 import org.opencastproject.assetmanager.api.Snapshot;
 import org.opencastproject.assetmanager.impl.persistence.Database;
@@ -34,6 +33,7 @@ import org.opencastproject.assetmanager.impl.storage.StoragePath;
 import org.opencastproject.util.IoSupport;
 import org.opencastproject.util.data.Option;
 import org.opencastproject.util.persistencefn.PersistenceEnvs;
+import org.opencastproject.util.persistencefn.PersistenceUtil;
 import org.opencastproject.util.persistencefn.Queries;
 import org.opencastproject.workspace.api.Workspace;
 
@@ -53,9 +53,6 @@ import java.util.Random;
 import java.util.Set;
 
 import javax.persistence.EntityManager;
-import javax.persistence.EntityManagerFactory;
-import javax.persistence.EntityTransaction;
-import javax.persistence.TypedQuery;
 
 public class AbstractTieredStorageAssetManagerTest<A extends TieredStorageAssetManager> extends AssetManagerTestBase<A> {
   public static final String LOCAL_STORE_ID = "local-test";
@@ -81,18 +78,8 @@ public class AbstractTieredStorageAssetManagerTest<A extends TieredStorageAssetM
       }
     });
 
-    final EntityManagerFactory emf = EasyMock.createMock(EntityManagerFactory.class);
-    final EntityManager em = EasyMock.createMock(EntityManager.class);
-    final TypedQuery query = EasyMock.createMock(TypedQuery.class);
-    final EntityTransaction tx = EasyMock.createNiceMock(EntityTransaction.class);
-    EasyMock.expect(emf.createEntityManager()).andReturn(em).anyTimes();
-    EasyMock.expect(em.createNamedQuery(EasyMock.anyString(), EasyMock.anyObject())).andReturn(query).anyTimes();
-    EasyMock.expect(em.getTransaction()).andReturn(tx).anyTimes();
-    EasyMock.expect(query.setParameter(EasyMock.anyString(), EasyMock.anyString())).andReturn(query).anyTimes();
-    EasyMock.expect(query.executeUpdate()).andReturn(0).anyTimes();
-    EasyMock.expect(query.getSingleResult()).andReturn(0L).anyTimes();
-    EasyMock.replay(emf, em, query, tx);
-    final Database db = new Database(emf, penv);
+    final Database db = new Database(
+            PersistenceUtil.mkTestEntityManagerFactoryFromSystemProperties(PERSISTENCE_UNIT));
     //
     final Workspace workspace = EasyMock.createNiceMock(Workspace.class);
     EasyMock.expect(workspace.get(EasyMock.anyObject(URI.class)))
@@ -181,7 +168,7 @@ public class AbstractTieredStorageAssetManagerTest<A extends TieredStorageAssetM
       private Set<StoragePath> store = new HashSet<>();
 
       private void logSize() {
-        logger.debug(format("Store contains %d asset/s", store.size()));
+        logger.debug("Store contains {} asset/s", store.size());
       }
 
       @Override public void put(StoragePath path, Source source) throws AssetStoreException {
@@ -250,7 +237,7 @@ public class AbstractTieredStorageAssetManagerTest<A extends TieredStorageAssetM
       private Random r = new Random(System.nanoTime());
 
       private void logSize() {
-        logger.debug(format("Store contains %d asset/s", store.size()));
+        logger.debug("Store contains {} asset/s", store.size());
       }
 
       private void logFault() throws AssetStoreException {

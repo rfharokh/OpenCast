@@ -62,12 +62,6 @@ public class EventSearchQuery extends AbstractSearchQuery {
   private String publisher = null;
   private String license = null;
   private String rights = null;
-  private final List<String> trackMimetypes = new ArrayList<String>();
-  private final List<String> trackStreamResolutions = new ArrayList<String>();
-  private final List<String> trackFlavors = new ArrayList<String>();
-  private final List<String> metadataFlavors = new ArrayList<String>();
-  private final List<String> metadataMimetypes = new ArrayList<String>();
-  private final List<String> attachmentFlavors = new ArrayList<String>();
   private String accessPolicy = null;
   private String managedAcl = null;
   private String workflowState = null;
@@ -76,16 +70,10 @@ public class EventSearchQuery extends AbstractSearchQuery {
   private Long duration = null;
   private String startDate = null;
   private String eventStatus = null;
-  private String reviewStatus = null;
-  private String schedulingStatus = null;
-  private Boolean optedOut = null;
-  private String reviewDate = null;
-  private Boolean blacklisted = null;
   private Boolean hasComments = null;
   private Boolean hasOpenComments = null;
   private Boolean needsCutting = null;
   private final List<String> publications = new ArrayList<String>();
-  private String workflowScheduledDate = null;
   private Long archiveVersion = null;
   private String agentId = null;
   private Date technicalStartTime = null;
@@ -159,7 +147,6 @@ public class EventSearchQuery extends AbstractSearchQuery {
    * @return the enhanced search query
    */
   public EventSearchQuery withTitle(String title) {
-    clearExpectations();
     this.title = title;
     return this;
   }
@@ -179,7 +166,6 @@ public class EventSearchQuery extends AbstractSearchQuery {
    * @return the enhanced search query
    */
   public EventSearchQuery withoutActions() {
-    clearExpectations();
     this.actions.clear();
     return this;
   }
@@ -196,7 +182,6 @@ public class EventSearchQuery extends AbstractSearchQuery {
   public EventSearchQuery withAction(Action action) {
     if (action == null)
       throw new IllegalArgumentException("Action cannot be null");
-    clearExpectations();
     this.actions.add(action.toString());
     return this;
   }
@@ -222,7 +207,6 @@ public class EventSearchQuery extends AbstractSearchQuery {
   public EventSearchQuery withPresenter(String presenter) {
     if (StringUtils.isBlank(presenter))
       throw new IllegalArgumentException("Presenter cannot be null");
-    clearExpectations();
     this.presenters.add(presenter);
     return this;
   }
@@ -248,7 +232,6 @@ public class EventSearchQuery extends AbstractSearchQuery {
   public EventSearchQuery withContributor(String contributor) {
     if (StringUtils.isBlank(contributor))
       throw new IllegalArgumentException("Contributor cannot be null");
-    clearExpectations();
     this.contributors.add(contributor);
     return this;
   }
@@ -270,7 +253,6 @@ public class EventSearchQuery extends AbstractSearchQuery {
    * @return the enhanced search query
    */
   public EventSearchQuery withSubject(String subject) {
-    clearExpectations();
     this.subject = subject;
     return this;
   }
@@ -292,7 +274,6 @@ public class EventSearchQuery extends AbstractSearchQuery {
    * @return the enhanced search query
    */
   public EventSearchQuery withDescription(String description) {
-    clearExpectations();
     this.description = description;
     return this;
   }
@@ -314,7 +295,6 @@ public class EventSearchQuery extends AbstractSearchQuery {
    * @return the enhanced search query
    */
   public EventSearchQuery withLocation(String location) {
-    clearExpectations();
     this.location = location;
     return this;
   }
@@ -336,7 +316,6 @@ public class EventSearchQuery extends AbstractSearchQuery {
    * @return the enhanced search query
    */
   public EventSearchQuery withSeriesId(String seriesId) {
-    clearExpectations();
     this.seriesId = seriesId;
     return this;
   }
@@ -358,7 +337,6 @@ public class EventSearchQuery extends AbstractSearchQuery {
    * @return the enhanced search query
    */
   public EventSearchQuery withSeriesName(String seriesName) {
-    clearExpectations();
     this.seriesName = seriesName;
     return this;
   }
@@ -380,7 +358,6 @@ public class EventSearchQuery extends AbstractSearchQuery {
    * @return the enhanced search query
    */
   public EventSearchQuery withLanguage(String language) {
-    clearExpectations();
     this.language = language;
     return this;
   }
@@ -402,7 +379,6 @@ public class EventSearchQuery extends AbstractSearchQuery {
    * @return the enhanced search query
    */
   public EventSearchQuery withSource(String source) {
-    clearExpectations();
     this.source = source;
     return this;
   }
@@ -424,7 +400,6 @@ public class EventSearchQuery extends AbstractSearchQuery {
    * @return the enhanced search query
    */
   public EventSearchQuery withCreated(String created) {
-    clearExpectations();
     this.created = created;
     return this;
   }
@@ -522,7 +497,6 @@ public class EventSearchQuery extends AbstractSearchQuery {
    * @return the enhanced search query
    */
   public EventSearchQuery withCreator(String creator) {
-    clearExpectations();
     this.creator = creator;
     return this;
   }
@@ -544,7 +518,6 @@ public class EventSearchQuery extends AbstractSearchQuery {
    * @return the enhanced search query
    */
   public EventSearchQuery withPublisher(String publisher) {
-    clearExpectations();
     this.publisher = publisher;
     return this;
   }
@@ -566,7 +539,6 @@ public class EventSearchQuery extends AbstractSearchQuery {
    * @return the enhanced search query
    */
   public EventSearchQuery withLicense(String license) {
-    clearExpectations();
     this.license = license;
     return this;
   }
@@ -588,7 +560,6 @@ public class EventSearchQuery extends AbstractSearchQuery {
    * @return the enhanced search query
    */
   public EventSearchQuery withRights(String rights) {
-    clearExpectations();
     this.rights = rights;
     return this;
   }
@@ -603,162 +574,6 @@ public class EventSearchQuery extends AbstractSearchQuery {
   }
 
   /**
-   * Selects recording events with the given track type.
-   * <p>
-   * Note that this method may be called multiple times to support selection of multiple recording events.
-   *
-   * @param trackMimetypes
-   *          the track type
-   * @return the enhanced search query
-   */
-  public EventSearchQuery withTrackMimetype(String trackMimetypes) {
-    if (StringUtils.isBlank(trackMimetypes))
-      throw new IllegalArgumentException("Track mimetype cannot be null");
-    clearExpectations();
-    this.trackMimetypes.add(trackMimetypes);
-    return this;
-  }
-
-  /**
-   * Returns the list of track types or an empty array if no track type have been specified.
-   *
-   * @return the track types
-   */
-  public String[] getTrackMimetypes() {
-    return trackMimetypes.toArray(new String[trackMimetypes.size()]);
-  }
-
-  /**
-   * Selects recording events with the given track stream resolution.
-   * <p>
-   * Note that this method may be called multiple times to support selection of multiple recording events.
-   *
-   * @param trackStreamResolution
-   *          the track stream resolution
-   * @return the enhanced search query
-   */
-  public EventSearchQuery withTrackStreamResolution(String trackStreamResolution) {
-    if (StringUtils.isBlank(trackStreamResolution))
-      throw new IllegalArgumentException("Track stream resolution cannot be null");
-    clearExpectations();
-    this.trackStreamResolutions.add(trackStreamResolution);
-    return this;
-  }
-
-  /**
-   * Returns the list of track stream resolution or an empty array if no track type have been specified.
-   *
-   * @return the track stream resolution
-   */
-  public String[] getTrackStreamResolution() {
-    return trackStreamResolutions.toArray(new String[trackStreamResolutions.size()]);
-  }
-
-  /**
-   * Selects recording events with the given track flavor.
-   * <p>
-   * Note that this method may be called multiple times to support selection of multiple recording events.
-   *
-   * @param trackFlavor
-   *          the track flavor
-   * @return the enhanced search query
-   */
-  public EventSearchQuery withTrackFlavor(String trackFlavor) {
-    if (StringUtils.isBlank(trackFlavor))
-      throw new IllegalArgumentException("Track flavor cannot be null");
-    clearExpectations();
-    this.trackFlavors.add(trackFlavor);
-    return this;
-  }
-
-  /**
-   * Returns the list of track flavors or an empty array if no track type have been specified.
-   *
-   * @return the track flavor
-   */
-  public String[] getTrackFlavor() {
-    return trackFlavors.toArray(new String[trackFlavors.size()]);
-  }
-
-  /**
-   * Selects recording events with the given track flavor.
-   * <p>
-   * Note that this method may be called multiple times to support selection of multiple recording events.
-   *
-   * @param metadataFlavor
-   *          the metadata flavor
-   * @return the enhanced search query
-   */
-  public EventSearchQuery withMetadataFlavor(String metadataFlavor) {
-    if (StringUtils.isBlank(metadataFlavor))
-      throw new IllegalArgumentException("Metadata flavor cannot be null");
-    clearExpectations();
-    this.metadataFlavors.add(metadataFlavor);
-    return this;
-  }
-
-  /**
-   * Returns the list of track flavors or an empty array if no track type have been specified.
-   *
-   * @return the metadata flavor
-   */
-  public String[] getMetadataFlavor() {
-    return metadataFlavors.toArray(new String[metadataFlavors.size()]);
-  }
-
-  /**
-   * Selects recording events with the given metadata mimetype.
-   * <p>
-   * Note that this method may be called multiple times to support selection of multiple recording events.
-   *
-   * @param metadataMimetype
-   *          the metadata mimetype
-   * @return the enhanced search query
-   */
-  public EventSearchQuery withMetadataMimetype(String metadataMimetype) {
-    if (StringUtils.isBlank(metadataMimetype))
-      throw new IllegalArgumentException("Metadata mimetype cannot be null");
-    clearExpectations();
-    this.metadataMimetypes.add(metadataMimetype);
-    return this;
-  }
-
-  /**
-   * Returns the list of metadata mimetypes or an empty array if no track type have been specified.
-   *
-   * @return the metadata mimetypes
-   */
-  public String[] getMetadataMimetype() {
-    return metadataMimetypes.toArray(new String[metadataMimetypes.size()]);
-  }
-
-  /**
-   * Selects recording events with the given attachment flavor.
-   * <p>
-   * Note that this method may be called multiple times to support selection of multiple recording events.
-   *
-   * @param attachmentFlavor
-   *          the attachment flavor
-   * @return the enhanced search query
-   */
-  public EventSearchQuery withAttachmentFlavor(String attachmentFlavor) {
-    if (StringUtils.isBlank(attachmentFlavor))
-      throw new IllegalArgumentException("Attachment flavor cannot be null");
-    clearExpectations();
-    this.attachmentFlavors.add(attachmentFlavor);
-    return this;
-  }
-
-  /**
-   * Returns the list of attachment flavors or an empty array if no track type have been specified.
-   *
-   * @return the attachement flavors
-   */
-  public String[] getAttachmentFlavor() {
-    return attachmentFlavors.toArray(new String[attachmentFlavors.size()]);
-  }
-
-  /**
    * Selects recordings with the given access policy.
    *
    * @param accessPolicy
@@ -766,7 +581,6 @@ public class EventSearchQuery extends AbstractSearchQuery {
    * @return the enhanced search query
    */
   public EventSearchQuery withAccessPolicy(String accessPolicy) {
-    clearExpectations();
     this.accessPolicy = accessPolicy;
     return this;
   }
@@ -788,7 +602,6 @@ public class EventSearchQuery extends AbstractSearchQuery {
    * @return the enhanced search query
    */
   public EventSearchQuery withManagedAcl(String managedAcl) {
-    clearExpectations();
     this.managedAcl = managedAcl;
     return this;
   }
@@ -810,7 +623,6 @@ public class EventSearchQuery extends AbstractSearchQuery {
    * @return the enhanced search query
    */
   public EventSearchQuery withWorkflowState(String workflowState) {
-    clearExpectations();
     this.workflowState = workflowState;
     return this;
   }
@@ -832,7 +644,6 @@ public class EventSearchQuery extends AbstractSearchQuery {
    * @return the enhanced search query
    */
   public EventSearchQuery withWorkflowId(long workflowId) {
-    clearExpectations();
     this.workflowId = workflowId;
     return this;
   }
@@ -854,7 +665,6 @@ public class EventSearchQuery extends AbstractSearchQuery {
    * @return the enhanced search query
    */
   public EventSearchQuery withWorkflowDefinition(String workflowDefinition) {
-    clearExpectations();
     this.workflowDefinition = workflowDefinition;
     return this;
   }
@@ -876,7 +686,6 @@ public class EventSearchQuery extends AbstractSearchQuery {
    * @return the enhanced search query
    */
   public EventSearchQuery withStartDate(String startDate) {
-    clearExpectations();
     this.startDate = startDate;
     return this;
   }
@@ -898,7 +707,6 @@ public class EventSearchQuery extends AbstractSearchQuery {
    * @return the enhanced search query
    */
   public EventSearchQuery withDuration(long duration) {
-    clearExpectations();
     this.duration = duration;
     return this;
   }
@@ -913,50 +721,6 @@ public class EventSearchQuery extends AbstractSearchQuery {
   }
 
   /**
-   * Selects recordings with the given review status.
-   *
-   * @param reviewStatus
-   *          the review status
-   * @return the enhanced search query
-   */
-  public EventSearchQuery withReviewStatus(String reviewStatus) {
-    clearExpectations();
-    this.reviewStatus = reviewStatus;
-    return this;
-  }
-
-  /**
-   * Returns the review status of the recording.
-   *
-   * @return the review status
-   */
-  public String getReviewStatus() {
-    return reviewStatus;
-  }
-
-  /**
-   * Selects recordings with the given scheduling status.
-   *
-   * @param schedulingStatus
-   *          the scheduling status
-   * @return the enhanced search query
-   */
-  public EventSearchQuery withSchedulingStatus(String schedulingStatus) {
-    clearExpectations();
-    this.schedulingStatus = schedulingStatus;
-    return this;
-  }
-
-  /**
-   * Returns the scheduling status of the recording.
-   *
-   * @return the scheduling status
-   */
-  public String getSchedulingStatus() {
-    return schedulingStatus;
-  }
-
-  /**
    * Selects recordings with the given event status.
    *
    * @param eventStatus
@@ -964,7 +728,6 @@ public class EventSearchQuery extends AbstractSearchQuery {
    * @return the enhanced search query
    */
   public EventSearchQuery withEventStatus(String eventStatus) {
-    clearExpectations();
     this.eventStatus = eventStatus;
     return this;
   }
@@ -979,72 +742,6 @@ public class EventSearchQuery extends AbstractSearchQuery {
   }
 
   /**
-   * Selects recordings with the given review date.
-   *
-   * @param reviewDate
-   *          the review date
-   * @return the enhanced search query
-   */
-  public EventSearchQuery withReviewDate(String reviewDate) {
-    clearExpectations();
-    this.reviewDate = reviewDate;
-    return this;
-  }
-
-  /**
-   * Returns the review date of the recording.
-   *
-   * @return the review date
-   */
-  public String getReviewDate() {
-    return reviewDate;
-  }
-
-  /**
-   * Selects recordings with the given recording status (opted out).
-   *
-   * @param optedOut
-   *          the recording status
-   * @return the enhanced search query
-   */
-  public EventSearchQuery withOptedOut(boolean optedOut) {
-    clearExpectations();
-    this.optedOut = optedOut;
-    return this;
-  }
-
-  /**
-   * Returns the recording status (opted out) of the recording.
-   *
-   * @return the recording out
-   */
-  public Boolean getOptedOut() {
-    return optedOut;
-  }
-
-  /**
-   * Selects recordings with the given recording status (blacklisted).
-   *
-   * @param blacklisted
-   *          the recording status (blacklisted)
-   * @return the enhanced search query
-   */
-  public EventSearchQuery withBlacklisted(boolean blacklisted) {
-    clearExpectations();
-    this.blacklisted = blacklisted;
-    return this;
-  }
-
-  /**
-   * Returns the recording status (blacklisted) of the recording.
-   *
-   * @return the recording backlisted status
-   */
-  public Boolean getBlacklisted() {
-    return blacklisted;
-  }
-
-  /**
    * Selects recordings with the given has comments status.
    *
    * @param hasComments
@@ -1052,7 +749,6 @@ public class EventSearchQuery extends AbstractSearchQuery {
    * @return the enhanced search query
    */
   public EventSearchQuery withComments(boolean hasComments) {
-    clearExpectations();
     this.hasComments = hasComments;
     return this;
   }
@@ -1065,7 +761,6 @@ public class EventSearchQuery extends AbstractSearchQuery {
    * @return the enhanced search query
    */
   public EventSearchQuery withOpenComments(boolean hasOpenComments) {
-    clearExpectations();
     this.hasOpenComments = hasOpenComments;
     return this;
   }
@@ -1078,7 +773,6 @@ public class EventSearchQuery extends AbstractSearchQuery {
    * @return the enhanced search query
    */
   public EventSearchQuery withNeedsCutting(boolean needsCutting) {
-    clearExpectations();
     this.needsCutting = needsCutting;
     return this;
   }
@@ -1122,7 +816,6 @@ public class EventSearchQuery extends AbstractSearchQuery {
   public EventSearchQuery withPublications(String publication) {
     if (StringUtils.isBlank(publication))
       throw new IllegalArgumentException("Publication cannot be null");
-    clearExpectations();
     this.publications.add(publication);
     return this;
   }
@@ -1137,28 +830,6 @@ public class EventSearchQuery extends AbstractSearchQuery {
   }
 
   /**
-   * Selects events with the given workflow scheduled date.
-   *
-   * @param workflowScheduledDate
-   *          the workflow scheduled date
-   * @return the enhanced search query
-   */
-  public EventSearchQuery withWorkflowScheduledDate(String workflowScheduledDate) {
-    clearExpectations();
-    this.workflowScheduledDate = workflowScheduledDate;
-    return this;
-  }
-
-  /**
-   * Returns the workflow scheduled date of the event.
-   *
-   * @return the workflow scheduled date
-   */
-  public String getWorkflowScheduledDate() {
-    return workflowScheduledDate;
-  }
-
-  /**
    * Selects events with the given archive version.
    *
    * @param archiveVersion
@@ -1166,7 +837,6 @@ public class EventSearchQuery extends AbstractSearchQuery {
    * @return the enhanced search query
    */
   public EventSearchQuery withArchiveVersion(long archiveVersion) {
-    clearExpectations();
     this.archiveVersion = archiveVersion;
     return this;
   }
@@ -1188,7 +858,6 @@ public class EventSearchQuery extends AbstractSearchQuery {
    * @return the enhanced search query
    */
   public EventSearchQuery withAgentId(String agentId) {
-    clearExpectations();
     this.agentId = agentId;
     return this;
   }
@@ -1210,7 +879,6 @@ public class EventSearchQuery extends AbstractSearchQuery {
    * @return the enhanced search query
    */
   public EventSearchQuery withTechnicalStartTime(Date technicalStartTime) {
-    clearExpectations();
     this.technicalStartTime = technicalStartTime;
     return this;
   }
@@ -1233,7 +901,6 @@ public class EventSearchQuery extends AbstractSearchQuery {
    * @return the enhanced search query
    */
   public EventSearchQuery withTechnicalEndTime(Date technicalEndTime) {
-    clearExpectations();
     this.technicalEndTime = technicalEndTime;
     return this;
   }
@@ -1259,7 +926,6 @@ public class EventSearchQuery extends AbstractSearchQuery {
   public EventSearchQuery withTechnicalPresenters(String presenter) {
     if (StringUtils.isBlank(presenter))
       throw new IllegalArgumentException("Presenter cannot be null");
-    clearExpectations();
     this.technicalPresenters.add(presenter);
     return this;
   }
@@ -1484,27 +1150,6 @@ public class EventSearchQuery extends AbstractSearchQuery {
   }
 
   /**
-   * Defines the sort order for the review status.
-   *
-   * @param order
-   *          the sort order
-   * @return the updated query
-   */
-  public EventSearchQuery sortByReviewStatus(Order order) {
-    withSortOrder(EventIndexSchema.REVIEW_STATUS, order);
-    return this;
-  }
-
-  /**
-   * Returns the sort order for the review status.
-   *
-   * @return the sort order
-   */
-  public Order getReviewStatusSortOrder() {
-    return getSortOrder(EventIndexSchema.REVIEW_STATUS);
-  }
-
-  /**
    * Defines the sort order for the workflow state.
    *
    * @param order
@@ -1523,27 +1168,6 @@ public class EventSearchQuery extends AbstractSearchQuery {
    */
   public Order getWorkflowStateSortOrder() {
     return getSortOrder(EventIndexSchema.WORKFLOW_STATE);
-  }
-
-  /**
-   * Defines the sort order for the scheduling status.
-   *
-   * @param order
-   *          the sort order
-   * @return the updated query
-   */
-  public EventSearchQuery sortBySchedulingStatus(Order order) {
-    withSortOrder(EventIndexSchema.SCHEDULING_STATUS, order);
-    return this;
-  }
-
-  /**
-   * Returns the sort order for the scheduling status.
-   *
-   * @return the sort order
-   */
-  public Order getSchedulingStatusSortOrder() {
-    return getSortOrder(EventIndexSchema.SCHEDULING_STATUS);
   }
 
   /**

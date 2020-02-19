@@ -38,7 +38,6 @@ import org.osgi.framework.BundleActivator;
 import org.osgi.framework.BundleContext;
 import org.osgi.framework.InvalidSyntaxException;
 import org.osgi.framework.ServiceReference;
-import org.osgi.framework.ServiceRegistration;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -74,9 +73,6 @@ public class Activator extends HttpServlet implements BundleActivator {
   /** The OSGI bundle context */
   protected BundleContext bundleContext;
 
-  /** The registration for the documentation servlet. */
-  protected ServiceRegistration docServletRegistration;
-
   /** A map of global macro values for REST documentation. */
   private Map<String, String> globalMacro;
 
@@ -108,11 +104,11 @@ public class Activator extends HttpServlet implements BundleActivator {
       resp.sendRedirect("rest_docs.html");
     } else {
       // write the details for this service
-      writeServiceDocumentation(docPath, req, resp);
+      writeServiceDocumentation(docPath, resp);
     }
   }
 
-  private void writeServiceDocumentation(final String docPath, HttpServletRequest req, HttpServletResponse resp)
+  private void writeServiceDocumentation(final String docPath, HttpServletResponse resp)
           throws IOException {
     ServiceReference reference = null;
     for (ServiceReference ref : getRestEndpointServices()) {
@@ -134,8 +130,7 @@ public class Activator extends HttpServlet implements BundleActivator {
         @Override
         public Void some(RestService annotation) {
           globalMacro.put("SERVICE_CLASS_SIMPLE_NAME", restService.getClass().getSimpleName());
-          RestDocData data = new RestDocData(annotation.name(), annotation.title(), docPath, annotation.notes(),
-                  restService, globalMacro);
+          RestDocData data = new RestDocData(annotation.name(), annotation.title(), docPath, annotation.notes());
           data.setAbstract(annotation.abstractText());
 
           Produces producesClass = (Produces) restService.getClass().getAnnotation(Produces.class);

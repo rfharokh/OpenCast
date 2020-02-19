@@ -26,6 +26,7 @@ import org.opencastproject.security.api.User;
 import org.opencastproject.util.EqualsUtil;
 
 import java.util.HashSet;
+import java.util.Objects;
 import java.util.Set;
 
 import javax.persistence.Access;
@@ -58,6 +59,8 @@ import javax.persistence.UniqueConstraint;
   @NamedQuery(name = "User.findByIdAndOrg", query = "select u from JpaUser u where u.id=:id and u.organization.id = :org"),
   @NamedQuery(name = "User.findByUsername", query = "select u from JpaUser u where u.username=:u and u.organization.id = :org"),
   @NamedQuery(name = "User.findAll", query = "select u from JpaUser u where u.organization.id = :org"),
+  @NamedQuery(name = "User.findInsecureHash",
+              query = "select u from JpaUser u where length(u.password) = 32 and u.organization.id = :org"),
   @NamedQuery(name = "User.findAllByUserNames", query = "select u from JpaUser u where u.organization.id = :org AND u.username IN :names"),
   @NamedQuery(name = "User.countAll", query = "select COUNT(u) from JpaUser u where u.organization.id = :org") })
 public class JpaUser implements User {
@@ -152,8 +155,9 @@ public class JpaUser implements User {
           Set<JpaRole> roles) {
     this(username, password, organization, null, null, provider, manageable);
     for (Role role : roles) {
-      if (role.getOrganization() == null || !organization.getId().equals(role.getOrganization().getId()))
+      if (!Objects.equals(organization.getId(), role.getOrganizationId())) {
         throw new IllegalArgumentException("Role " + role + " is not from the same organization!");
+      }
     }
     this.roles = roles;
   }
@@ -182,8 +186,10 @@ public class JpaUser implements User {
           String provider, boolean manageable, Set<JpaRole> roles) {
     this(username, password, organization, name, email, provider, manageable);
     for (Role role : roles) {
-      if (role.getOrganization() == null || !organization.getId().equals(role.getOrganization().getId()))
-        throw new IllegalArgumentException("Role " + role + " is not from the same organization!");
+      if (!Objects.equals(organization.getId(), role.getOrganizationId())) {
+        throw new IllegalArgumentException("Role " + role + " is not from the same organization ("
+                + organization.getId() + ")");
+      }
     }
     this.roles = roles;
   }
@@ -204,14 +210,6 @@ public class JpaUser implements User {
   @Override
   public String getPassword() {
     return password;
-  }
-
-  /**
-   * @see org.opencastproject.security.api.User#canLogin()
-   */
-  @Override
-  public boolean canLogin() {
-    return true;
   }
 
   /**
@@ -271,7 +269,7 @@ public class JpaUser implements User {
    */
   @Override
   public int hashCode() {
-    return EqualsUtil.hash(username, organization, provider);
+    return Objects.hash(username, organization, provider);
   }
 
   /**

@@ -41,6 +41,9 @@ import org.apache.commons.io.IOUtils;
 import org.apache.commons.lang3.StringUtils;
 import org.osgi.framework.BundleContext;
 import org.osgi.service.component.ComponentContext;
+import org.osgi.service.component.annotations.Activate;
+import org.osgi.service.component.annotations.Component;
+import org.osgi.service.component.annotations.Reference;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -54,13 +57,17 @@ import java.util.TreeSet;
  * User and group loader to create a system administrator group for each tenant along with a user named after the
  * organization.
  */
+@Component(
+  property = {
+    "service.description=System admin user and group loader"
+  },
+  immediate = true,
+  service = { AdminUserAndGroupLoader.class }
+)
 public class AdminUserAndGroupLoader implements OrganizationDirectoryListener {
 
   /** The logging facility */
   private static final Logger logger = LoggerFactory.getLogger(AdminUserAndGroupLoader.class);
-
-  /** The administrator user configuration option */
-  public static final String OPT_ADMIN_USER = "org.opencastproject.security.admin.user";
 
   /** The administrator password configuration option */
   public static final String OPT_ADMIN_PASSWORD = "org.opencastproject.security.admin.pass";
@@ -119,10 +126,11 @@ public class AdminUserAndGroupLoader implements OrganizationDirectoryListener {
    * @param cc
    *          the component context
    */
+  @Activate
   public void activate(ComponentContext cc) throws Exception {
     logger.debug("Activating admin group loader");
     BundleContext bundleCtx = cc.getBundleContext();
-    adminUserName = StringUtils.trimToNull(bundleCtx.getProperty(OPT_ADMIN_USER));
+    adminUserName = StringUtils.trimToNull(bundleCtx.getProperty(SecurityConstants.GLOBAL_ADMIN_USER_PROPERTY));
     adminPassword = StringUtils.trimToNull(bundleCtx.getProperty(OPT_ADMIN_PASSWORD));
     adminEmail = StringUtils.trimToNull(bundleCtx.getProperty(OPT_ADMIN_EMAIL));
     adminRoles = StringUtils.trimToNull(bundleCtx.getProperty(OPT_ADMIN_ROLES));
@@ -329,6 +337,7 @@ public class AdminUserAndGroupLoader implements OrganizationDirectoryListener {
    * @param groupRoleProvider
    *          the groupRoleProvider to set
    */
+  @Reference(name = "groupRoleProvider")
   void setGroupRoleProvider(JpaGroupRoleProvider groupRoleProvider) {
     this.groupRoleProvider = groupRoleProvider;
   }
@@ -339,6 +348,7 @@ public class AdminUserAndGroupLoader implements OrganizationDirectoryListener {
    * @param userAndRoleProvider
    *          the user and role provider to set
    */
+  @Reference(name = "userAndRoleProvider")
   void setUserAndRoleProvider(JpaUserAndRoleProvider userAndRoleProvider) {
     this.userAndRoleProvider = userAndRoleProvider;
   }
@@ -349,6 +359,7 @@ public class AdminUserAndGroupLoader implements OrganizationDirectoryListener {
    * @param organizationDirectoryService
    *          the organizationDirectoryService to set
    */
+  @Reference(name = "organizationDirectoryService")
   void setOrganizationDirectoryService(OrganizationDirectoryService organizationDirectoryService) {
     this.organizationDirectoryService = organizationDirectoryService;
     this.organizationDirectoryService.addOrganizationDirectoryListener(this);
@@ -360,6 +371,7 @@ public class AdminUserAndGroupLoader implements OrganizationDirectoryListener {
    * @param securityService
    *          the security service
    */
+  @Reference(name = "security-service")
   void setSecurityService(SecurityService securityService) {
     this.securityService = securityService;
   }

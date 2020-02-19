@@ -116,8 +116,8 @@ public class JobTest {
     serviceRegistry.setSecurityService(securityService);
 
     // register the hosts
-    serviceRegistry.registerHost(LOCALHOST, "127.0.0.1", 1024, 1, 1.0f);
-    serviceRegistry.registerHost(REMOTEHOST, "127.0.0.1", 1024, 1, 1.0f);
+    serviceRegistry.registerHost(LOCALHOST, "127.0.0.1", "local", 1024, 1, 1.0f);
+    serviceRegistry.registerHost(REMOTEHOST, "127.0.0.1", "remote", 1024, 1, 1.0f);
 
     // register some service instances
     regType1Localhost = (ServiceRegistrationJpaImpl) serviceRegistry.registerService(JOB_TYPE_1, LOCALHOST, PATH);
@@ -275,12 +275,17 @@ public class JobTest {
     // create a receipt on each service instance
     serviceRegistry.createJob(regType1Localhost.getHost(), regType1Localhost.getServiceType(), OPERATION_NAME, null,
             null, false, null);
+    serviceRegistry.createJob(regType2Localhost.getHost(), regType2Localhost.getServiceType(), OPERATION_NAME, null,
+            null, false, null);
     serviceRegistry.createJob(regType1Remotehost.getHost(), regType1Remotehost.getServiceType(), OPERATION_NAME, null,
             null, false, null);
 
     // Since these jobs have not been dispatched to a host, there shouldn't be any jobs on those hosts
     assertEquals(1, serviceRegistry.countByHost(JOB_TYPE_1, LOCALHOST, Status.INSTANTIATED));
     assertEquals(1, serviceRegistry.countByHost(JOB_TYPE_1, REMOTEHOST, Status.INSTANTIATED));
+
+    // Count any job type on a host
+    assertEquals(2, serviceRegistry.countByHost(null, LOCALHOST, Status.INSTANTIATED));
 
     // Counting any job without regard to host should return both jobs
     assertEquals(2, serviceRegistry.count(JOB_TYPE_1, Status.INSTANTIATED));
@@ -434,7 +439,7 @@ public class JobTest {
   @Test
   public void testHandlerRegistration() throws Exception {
     String url = "http://type1handler:8080";
-    serviceRegistry.registerHost(url, "127.0.0.1", 1024, 1, 1);
+    serviceRegistry.registerHost(url, "127.0.0.1", "test", 1024, 1, 1);
 
     String jobType = "type1";
     // we should start with no handlers
@@ -466,7 +471,7 @@ public class JobTest {
   @Test
   public void testDuplicateHandlerRegistrations() throws Exception {
     String url = "http://type1handler:8080";
-    serviceRegistry.registerHost(url, "127.0.0.1", 1024, 1, 1);
+    serviceRegistry.registerHost(url, "127.0.0.1", "test", 1024, 1, 1);
 
     String receiptType = "type1";
     // we should start with no handlers
@@ -486,7 +491,7 @@ public class JobTest {
 
     // re-register the host. this should not unset the maintenance mode and should not throw an exception
     serviceRegistry.unregisterHost(url);
-    serviceRegistry.registerHost(url, "127.0.0.1", 1024, 1, 1);
+    serviceRegistry.registerHost(url, "127.0.0.1", "test", 1024, 1, 1);
     serviceRegistry.registerService(receiptType, url, PATH);
 
     // zero because it's still in maintenance mode
@@ -611,10 +616,10 @@ public class JobTest {
 
   @Test
   public void testMaxLoad() throws Exception {
-    assertEquals(1.0f, serviceRegistry.getMaxLoads().get(serviceRegistry.getRegistryHostname()).getLoadFactor(), 0.01f);
-    assertEquals(1.0f, serviceRegistry.getMaxLoads().get(LOCALHOST).getLoadFactor(), 0.01f);
-    assertEquals(1.0f, serviceRegistry.getMaxLoads().get(REMOTEHOST).getLoadFactor(), 0.01f);
-    assertEquals(1.0f, serviceRegistry.getMaxLoadOnNode(serviceRegistry.getRegistryHostname()).getLoadFactor(), 0.01f);
+    assertEquals(1.0f, serviceRegistry.getMaxLoads().get(serviceRegistry.getRegistryHostname()).getMaxLoad(), 0.01f);
+    assertEquals(1.0f, serviceRegistry.getMaxLoads().get(LOCALHOST).getMaxLoad(), 0.01f);
+    assertEquals(1.0f, serviceRegistry.getMaxLoads().get(REMOTEHOST).getMaxLoad(), 0.01f);
+    assertEquals(1.0f, serviceRegistry.getMaxLoadOnNode(serviceRegistry.getRegistryHostname()).getMaxLoad(), 0.01f);
   }
 
   @Test

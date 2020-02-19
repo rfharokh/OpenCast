@@ -34,14 +34,11 @@ import org.opencastproject.security.api.SecurityService;
 import org.easymock.EasyMock;
 import org.junit.Before;
 import org.junit.Test;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 
 import java.io.File;
 import java.util.Map;
 
 public class ListProvidersScannerTest {
-  private static final Logger logger = LoggerFactory.getLogger(ListProvidersScannerTest.class);
   private String listName;
   private Organization defaultOrg;
   private Organization specificOrg;
@@ -55,7 +52,7 @@ public class ListProvidersScannerTest {
 
   @Before
   public void setUp() {
-    listName = "BLACKLISTS.USERS.REASONS";
+    listName = "TEST.LIST.NAME";
     defaultOrg = EasyMock.createNiceMock(Organization.class);
     specificOrg = EasyMock.createNiceMock(Organization.class);
     listProvidersService = new ListProvidersServiceImpl();
@@ -97,9 +94,9 @@ public class ListProvidersScannerTest {
             .getList(listName, null, false).size()
     );
     assertEquals(listName, listProvidersService.getAvailableProviders().get(0));
-    assertEquals("Sick Leave", listProvidersService
+    assertEquals("TEST.VALUE.1", listProvidersService
             .getList(listName, null, false)
-            .get("PM.BLACKLIST.REASONS.SICK_LEAVE")
+            .get("TEST.KEY.1")
     );
   }
 
@@ -109,9 +106,9 @@ public class ListProvidersScannerTest {
     listProvidersScanner.update(file);
     Map<String, String> dictionary = listProvidersService.getList(listName, null, false);
 
-    assertEquals("Sick Leave", dictionary.get("PM.BLACKLIST.REASONS.SICK_LEAVE"));
-    assertEquals("Leave", dictionary.get("PM.BLACKLIST.REASONS.LEAVE"));
-    assertEquals("Family Emergency", dictionary.get("PM.BLACKLIST.REASONS.FAMILY_EMERGENCY"));
+    assertEquals("TEST.VALUE.1", dictionary.get("TEST.KEY.1"));
+    assertEquals("TEST.VALUE.2", dictionary.get("TEST.KEY.2"));
+    assertEquals("TEST.VALUE.3", dictionary.get("TEST.KEY.3"));
   }
 
   @Test
@@ -124,35 +121,35 @@ public class ListProvidersScannerTest {
   @Test
   public void testSpecificOrgInstall() throws Exception {
     EasyMock.expect(securityService.getOrganization()).andReturn(specificOrg).anyTimes();
-    EasyMock.expect(specificOrg.getId()).andReturn("ch-switch").anyTimes();
+    EasyMock.expect(specificOrg.getId()).andReturn("org1").anyTimes();
 
-    listName = "DEBUG";
+    listName = "TEST.LIST.NAME";
     File file = getResourceFile("/ListProvidersScannerTest-AllProperties.properties");
     listProvidersScanner.install(file);
 
     EasyMock.replay();
 
-    assertTrue("Provider has not been registered", listProvidersService.hasProvider(listName, "ch-switch"));
+    assertTrue("Provider has not been registered", listProvidersService.hasProvider(listName, "org1"));
   }
 
   @Test
   public void testSpecificOrgUninstall() throws Exception {
     EasyMock.expect(securityService.getOrganization()).andReturn(specificOrg).anyTimes();
-    EasyMock.expect(specificOrg.getId()).andReturn("ch-switch").anyTimes();
-    listName = "DEBUG";
+    EasyMock.expect(specificOrg.getId()).andReturn("org1").anyTimes();
+    listName = "TEST.LIST.NAME";
     File file = getResourceFile("/ListProvidersScannerTest-AllProperties.properties");
     listProvidersScanner.uninstall(file);
 
     EasyMock.replay();
 
-    assertTrue("Provider was not removed", !listProvidersService.hasProvider(listName, "ch-switch"));
+    assertTrue("Provider was not removed", !listProvidersService.hasProvider(listName, "org1"));
   }
 
   @Test
   public void testIsTranslatable() throws Exception {
     EasyMock.expect(securityService.getOrganization()).andReturn(specificOrg).anyTimes();
-    EasyMock.expect(specificOrg.getId()).andReturn("ch-switch").anyTimes();
-    listName = "DEBUG";
+    EasyMock.expect(specificOrg.getId()).andReturn("org1").anyTimes();
+    listName = "TEST.LIST.NAME";
     File file = getResourceFile("/ListProvidersScannerTest-AllProperties.properties");
     listProvidersScanner.install(file);
 
@@ -164,14 +161,14 @@ public class ListProvidersScannerTest {
   @Test
   public void testGetDefault() throws Exception {
     EasyMock.expect(securityService.getOrganization()).andReturn(specificOrg).anyTimes();
-    EasyMock.expect(specificOrg.getId()).andReturn("ch-switch").anyTimes();
-    listName = "DEBUG";
+    EasyMock.expect(specificOrg.getId()).andReturn("org1").anyTimes();
+    listName = "TEST.LIST.NAME";
     File fileWithDefault = getResourceFile("/ListProvidersScannerTest-AllProperties.properties");
     listProvidersScanner.install(fileWithDefault);
 
     EasyMock.replay(securityService, specificOrg);
 
-    assertEquals("dokay", listProvidersService.getDefault(listName));
+    assertEquals("TEST.VALUE.1", listProvidersService.getDefault(listName));
   }
 
   @Test
@@ -179,7 +176,7 @@ public class ListProvidersScannerTest {
     File file = getResourceFile("/ListProvidersScannerTest-WithOrg.properties");
     listProvidersScanner.install(file);
     try {
-      String defaultValue = listProvidersService.getDefault(listName);
+      listProvidersService.getDefault(listName);
     } catch (ListProviderException e) {
       assertEquals("No provider found for organisation <*> with the name " + listName, e.getMessage());
     }
@@ -227,8 +224,8 @@ public class ListProvidersScannerTest {
 
     assertEquals(3, dictionary.size());
 
-    assertEquals("Sick Leave", dictionary.get("PM.BLACKLIST.REASONS.SICK_LEAVE"));
-    assertEquals("Leave", dictionary.get("PM.BLACKLIST.REASONS.LEAVE"));
-    assertEquals("Family Emergency", dictionary.get("PM.BLACKLIST.REASONS.FAMILY_EMERGENCY"));
+    assertEquals("TEST.VALUE.1", dictionary.get("TEST.KEY.1"));
+    assertEquals("TEST.VALUE.2", dictionary.get("TEST.KEY.2"));
+    assertEquals("TEST.VALUE.3", dictionary.get("TEST.KEY.3"));
   }
 }

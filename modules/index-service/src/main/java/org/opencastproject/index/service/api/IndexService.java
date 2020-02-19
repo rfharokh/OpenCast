@@ -24,6 +24,7 @@ package org.opencastproject.index.service.api;
 import org.opencastproject.event.comment.EventComment;
 import org.opencastproject.index.service.catalog.adapter.MetadataList;
 import org.opencastproject.index.service.exception.IndexServiceException;
+import org.opencastproject.index.service.exception.UnsupportedAssetException;
 import org.opencastproject.index.service.impl.index.AbstractSearchIndex;
 import org.opencastproject.index.service.impl.index.event.Event;
 import org.opencastproject.index.service.impl.index.event.EventHttpServletRequest;
@@ -43,12 +44,9 @@ import org.opencastproject.security.api.UnauthorizedException;
 import org.opencastproject.series.api.SeriesException;
 import org.opencastproject.userdirectory.ConflictException;
 import org.opencastproject.util.NotFoundException;
-import org.opencastproject.workflow.api.WorkflowException;
-import org.opencastproject.workflow.api.WorkflowInstance;
+import org.opencastproject.workflow.api.WorkflowDatabaseException;
 
 import com.entwinemedia.fn.data.Opt;
-
-import org.json.simple.JSONObject;
 
 import java.io.IOException;
 import java.text.ParseException;
@@ -64,6 +62,10 @@ public interface IndexService {
 
   enum SourceType {
     UPLOAD, UPLOAD_LATER, SCHEDULE_SINGLE, SCHEDULE_MULTIPLE
+  }
+
+  enum EventRemovalResult {
+    SUCCESS, GENERAL_FAILURE, NOT_FOUND, RETRACTING
   }
 
   SearchResult<Group> getGroups(String filter, Opt<Integer> limit, Opt<Integer> offset, Opt<String> sort,
@@ -159,34 +161,10 @@ public interface IndexService {
    *           Thrown if there was an internal server error while creating the event.
    * @throws IllegalArgumentException
    *           Thrown if the provided request was inappropriate.
+   * @throws UnsupportedAssetException
+   *           Thrown if the provided asset file type is not accepted.
    */
-  String createEvent(HttpServletRequest request) throws IndexServiceException, IllegalArgumentException;
-
-  /**
-   * Creates a new event based on a json string and a media package.
-   *
-   * @param metadataJson
-   *          The json representing the metadata collection.
-   * @param mp
-   *          The mediapackage that will be used to create the event.
-   * @return The event's id (or a comma seperated list of event ids if it was a group of events)
-   * @throws ParseException
-   *           Thrown if unable to parse the json metadata
-   * @throws IOException
-   *           Thrown if unable to create a dublin core catalog
-   * @throws MediaPackageException
-   *           Thrown if there is a problem with the mediapackage.
-   * @throws IngestException
-   *           Thrown if unable to ingest the new event.
-   * @throws NotFoundException
-   *           Thrown if the event is not found to be created.
-   * @throws SchedulerException
-   *           Thrown if there is a problem scheduling the event.
-   * @throws UnauthorizedException
-   *           Thrown if the user is unable to create events.
-   */
-  String createEvent(JSONObject metadataJson, MediaPackage mp) throws ParseException, IOException,
-          MediaPackageException, IngestException, NotFoundException, SchedulerException, UnauthorizedException;
+  String createEvent(HttpServletRequest request) throws IndexServiceException, IllegalArgumentException, UnsupportedAssetException;
 
   /**
    * Create a new event using a {@link EventHttpServletRequest}.
@@ -211,6 +189,26 @@ public interface IndexService {
    */
   String createEvent(EventHttpServletRequest eventHttpServletRequest) throws ParseException, IOException,
           MediaPackageException, IngestException, NotFoundException, SchedulerException, UnauthorizedException;
+
+  /**
+   * Removes an event and retracts it if necessary.
+   *
+   * @param event
+   *          The event to remove.
+   * @param doOnNotFound
+   *      What to do when the event could not be found.
+   * @param retractWorkflowId
+   *          The id of the workflow to use to retract the event if necessary.
+   * @return A result which tells if the event was removed, removal failed, or the event is being retracted and will be removed later.
+   * @throws UnauthorizedException
+   *           Thrown if the action is unauthorized
+   * @throws WorkflowDatabaseException
+   *           Thrown if the workflow database is not reachable. This may be a temporary problem.
+   * @throws NotFoundException
+   *           If the configured retract workflow cannot be found. This is most likely a configuration issue.
+   */
+  EventRemovalResult removeEvent(Event event, Runnable doOnNotFound, String retractWorkflowId)
+      throws UnauthorizedException, WorkflowDatabaseException, NotFoundException;
 
   /**
    * Removes an event.
@@ -250,9 +248,11 @@ public interface IndexService {
    *           Thrown if the current user is unable to create the new event.
    * @throws IndexServiceException
    *            Thrown if the update assets workflow cannot be started
+   * @throws UnsupportedAssetException
+   *           Thrown if the provided asset file type is not accepted.
    */
   String updateEventAssets(MediaPackage mp, HttpServletRequest request) throws ParseException, IOException,
-          MediaPackageException, NotFoundException, UnauthorizedException, IndexServiceException;
+          MediaPackageException, NotFoundException, UnauthorizedException, IndexServiceException, UnsupportedAssetException;
 
   /**
    * Update an event's metadata using a {@link MetadataList}
@@ -275,31 +275,6 @@ public interface IndexService {
    */
   MetadataList updateEventMetadata(String id, MetadataList metadataList, AbstractSearchIndex index)
           throws IndexServiceException, SearchIndexException, NotFoundException, UnauthorizedException;
-
-  /**
-   * Update only the common default event metadata.
-   *
-   * @param id
-   *          The id of the event to update.
-   * @param metadataJSON
-   *          The metadata to update in json format.
-   * @param index
-   *          The index to update the event in.
-   * @return A metadata list of the updated fields.
-   * @throws IllegalArgumentException
-   *           Thrown if the metadata was not formatted correctly.
-   * @throws IndexServiceException
-   *           Thrown if there was an error updating the event.
-   * @throws SearchIndexException
-   *           Thrown if there was an error searching the search index.
-   * @throws NotFoundException
-   *           Thrown if the {@link Event} could not be found.
-   * @throws UnauthorizedException
-   *           Thrown if the current user is unable to update the event.
-   */
-  MetadataList updateCommonEventMetadata(String id, String metadataJSON, AbstractSearchIndex index)
-          throws IllegalArgumentException, IndexServiceException, SearchIndexException, NotFoundException,
-          UnauthorizedException;
 
   /**
    * Update the event metadata in all available catalogs.
@@ -374,12 +349,6 @@ public interface IndexService {
 
   // TODO remove when it is no longer needed by AbstractEventEndpoint
   Source getEventSource(Event event);
-
-  // TODO remove when it is no longer needed by AbstractEventEndpoint
-  Opt<WorkflowInstance> getCurrentWorkflowInstance(String mpId) throws IndexServiceException;
-
-  // TODO remove when it is no longer needed by AbstractEventEndpoint
-  void updateWorkflowInstance(WorkflowInstance workflowInstance) throws WorkflowException, UnauthorizedException;
 
   void updateCommentCatalog(Event event, List<EventComment> comments) throws Exception;
 
@@ -468,49 +437,6 @@ public interface IndexService {
   List<SeriesCatalogUIAdapter> getSeriesCatalogUIAdapters();
 
   /**
-   * Changes the opt out status of a single event (by its mediapackage id)
-   *
-   * @param eventId
-   *          The event's unique id formally the mediapackage id
-   * @param optout
-   *          Whether the event should be moved into opted out.
-   * @param index
-   *          The index to update the event in.
-   * @throws NotFoundException
-   *           Thrown if the event could not be found.
-   * @throws SchedulerException
-   *           Thrown if there was an error in the scheduler service
-   * @throws SearchIndexException
-   *           Thrown if there was and error in search index
-   * @throws UnauthorizedException
-   *           Thrown if the current user is unable to update the event.
-   */
-  void changeOptOutStatus(String eventId, boolean optout, AbstractSearchIndex index)
-          throws NotFoundException, SchedulerException, SearchIndexException, UnauthorizedException;
-
-  /**
-   * Update only the common default series metadata.
-   *
-   * @param id
-   *          The id of the series to update.
-   * @param metadataJSON
-   *          The metadata to update in json format.
-   * @param index
-   *          The index to update the series in.
-   * @return A metadata list of the updated fields.
-   * @throws IllegalArgumentException
-   *           Thrown if the metadata was not formatted correctly.
-   * @throws IndexServiceException
-   *           Thrown if there was an error updating the event.
-   * @throws NotFoundException
-   *           Thrown if the {@link Event} could not be found.
-   * @throws UnauthorizedException
-   *           Thrown if the current user is unable to update the event.
-   */
-  MetadataList updateCommonSeriesMetadata(String id, String metadataJSON, AbstractSearchIndex index)
-          throws IllegalArgumentException, IndexServiceException, NotFoundException, UnauthorizedException;
-
-  /**
    * Update the series metadata in all available catalogs.
    *
    * @param id
@@ -566,13 +492,6 @@ public interface IndexService {
    */
   void removeCatalogByFlavor(Series series, MediaPackageElementFlavor flavor)
           throws IndexServiceException, NotFoundException;
-
-  /**
-   * Checks if the given event has snapshots
-   * @param eventId the event to check
-   * @return <code>true</code> if the event has snapshots, <code>false</code> otherwise
-   */
-  boolean hasSnapshots(String eventId);
 
   Map<String,Map<String,String>> getEventWorkflowProperties(List<String> eventIds);
 

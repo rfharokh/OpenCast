@@ -22,17 +22,17 @@
 package org.opencastproject.workflow.remote;
 
 import static org.apache.http.HttpStatus.SC_CONFLICT;
-import static org.apache.http.HttpStatus.SC_CREATED;
 import static org.apache.http.HttpStatus.SC_NOT_FOUND;
 import static org.apache.http.HttpStatus.SC_NO_CONTENT;
 import static org.apache.http.HttpStatus.SC_OK;
-import static org.apache.http.HttpStatus.SC_PRECONDITION_FAILED;
 import static org.apache.http.HttpStatus.SC_UNAUTHORIZED;
 
 import org.opencastproject.mediapackage.MediaPackage;
 import org.opencastproject.mediapackage.MediaPackageParser;
+import org.opencastproject.security.api.TrustedHttpClient;
 import org.opencastproject.security.api.UnauthorizedException;
 import org.opencastproject.serviceregistry.api.RemoteBase;
+import org.opencastproject.serviceregistry.api.ServiceRegistry;
 import org.opencastproject.util.NotFoundException;
 import org.opencastproject.util.SolrUtils;
 import org.opencastproject.workflow.api.WorkflowDatabaseException;
@@ -42,13 +42,13 @@ import org.opencastproject.workflow.api.WorkflowInstance;
 import org.opencastproject.workflow.api.WorkflowInstance.WorkflowState;
 import org.opencastproject.workflow.api.WorkflowListener;
 import org.opencastproject.workflow.api.WorkflowParser;
-import org.opencastproject.workflow.api.WorkflowParsingException;
 import org.opencastproject.workflow.api.WorkflowQuery;
 import org.opencastproject.workflow.api.WorkflowQuery.QueryTerm;
 import org.opencastproject.workflow.api.WorkflowService;
 import org.opencastproject.workflow.api.WorkflowSet;
 import org.opencastproject.workflow.api.WorkflowStatistics;
 
+import org.apache.commons.io.IOUtils;
 import org.apache.http.HttpResponse;
 import org.apache.http.HttpStatus;
 import org.apache.http.NameValuePair;
@@ -57,10 +57,12 @@ import org.apache.http.client.entity.UrlEncodedFormEntity;
 import org.apache.http.client.methods.HttpDelete;
 import org.apache.http.client.methods.HttpGet;
 import org.apache.http.client.methods.HttpPost;
-import org.apache.http.client.methods.HttpPut;
 import org.apache.http.client.utils.URLEncodedUtils;
 import org.apache.http.message.BasicNameValuePair;
 import org.apache.http.util.EntityUtils;
+import org.json.simple.parser.JSONParser;
+import org.osgi.service.component.annotations.Component;
+import org.osgi.service.component.annotations.Reference;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -69,6 +71,7 @@ import java.io.UnsupportedEncodingException;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
@@ -76,6 +79,13 @@ import java.util.Map.Entry;
 /**
  * An implementation of the workflow service that communicates with a remote workflow service via HTTP.
  */
+@Component(
+  property = {
+    "service.description=Workflow Remote Service Proxy"
+  },
+  immediate =  true,
+  service = { WorkflowService.class }
+)
 public class WorkflowServiceRemoteImpl extends RemoteBase implements WorkflowService {
 
   /** The logger */
@@ -83,6 +93,28 @@ public class WorkflowServiceRemoteImpl extends RemoteBase implements WorkflowSer
 
   public WorkflowServiceRemoteImpl() {
     super(JOB_TYPE);
+  }
+
+  /**
+   * Sets the trusted http client
+   *
+   * @param client
+   */
+  @Override
+  @Reference(name = "trustedHttpClient")
+  public void setTrustedHttpClient(TrustedHttpClient client) {
+    super.setTrustedHttpClient(client);
+  }
+
+  /**
+   * Sets the remote service manager.
+   *
+   * @param remoteServiceManager
+   */
+  @Override
+  @Reference(name = "remoteServiceManager")
+  public void setRemoteServiceManager(ServiceRegistry remoteServiceManager) {
+    this.remoteServiceManager = remoteServiceManager;
   }
 
   /**
@@ -147,7 +179,7 @@ public class WorkflowServiceRemoteImpl extends RemoteBase implements WorkflowSer
    */
   @Override
   public WorkflowSet getWorkflowInstances(WorkflowQuery query) throws WorkflowDatabaseException {
-    List<NameValuePair> queryStringParams = new ArrayList<NameValuePair>();
+    List<NameValuePair> queryStringParams = new ArrayList<>();
 
     if (query.getText() != null)
       queryStringParams.add(new BasicNameValuePair("q", query.getText()));
@@ -311,7 +343,7 @@ public class WorkflowServiceRemoteImpl extends RemoteBase implements WorkflowSer
           Long parentWorkflowId, Map<String, String> properties) throws WorkflowDatabaseException, NotFoundException {
     HttpPost post = new HttpPost("/start");
     try {
-      List<BasicNameValuePair> params = new ArrayList<BasicNameValuePair>();
+      List<BasicNameValuePair> params = new ArrayList<>();
       if (workflowDefinition != null)
         params.add(new BasicNameValuePair("definition", WorkflowParser.toXml(workflowDefinition)));
       params.add(new BasicNameValuePair("mediapackage", MediaPackageParser.getAsXml(mediaPackage)));
@@ -319,7 +351,7 @@ public class WorkflowServiceRemoteImpl extends RemoteBase implements WorkflowSer
         params.add(new BasicNameValuePair("parent", parentWorkflowId.toString()));
       if (properties != null)
         params.add(new BasicNameValuePair("properties", mapToString(properties)));
-      post.setEntity(new UrlEncodedFormEntity(params));
+      post.setEntity(new UrlEncodedFormEntity(params, "UTF-8"));
     } catch (Exception e) {
       throw new IllegalStateException("Unable to assemble a remote workflow request", e);
     }
@@ -376,7 +408,7 @@ public class WorkflowServiceRemoteImpl extends RemoteBase implements WorkflowSer
    */
   @Override
   public long countWorkflowInstances(WorkflowState state, String operation) throws WorkflowDatabaseException {
-    List<NameValuePair> queryStringParams = new ArrayList<NameValuePair>();
+    List<NameValuePair> queryStringParams = new ArrayList<>();
     if (state != null)
       queryStringParams.add(new BasicNameValuePair("state", state.toString()));
     if (operation != null)
@@ -419,10 +451,10 @@ public class WorkflowServiceRemoteImpl extends RemoteBase implements WorkflowSer
   @Override
   public WorkflowInstance stop(long workflowInstanceId) throws WorkflowDatabaseException, NotFoundException {
     HttpPost post = new HttpPost("/stop");
-    List<BasicNameValuePair> params = new ArrayList<BasicNameValuePair>();
+    List<BasicNameValuePair> params = new ArrayList<>();
     params.add(new BasicNameValuePair("id", Long.toString(workflowInstanceId)));
     try {
-      post.setEntity(new UrlEncodedFormEntity(params));
+      post.setEntity(new UrlEncodedFormEntity(params, "UTF-8"));
     } catch (UnsupportedEncodingException e) {
       throw new IllegalStateException("Unable to assemble a remote workflow service request", e);
     }
@@ -454,10 +486,10 @@ public class WorkflowServiceRemoteImpl extends RemoteBase implements WorkflowSer
   @Override
   public WorkflowInstance suspend(long workflowInstanceId) throws WorkflowDatabaseException, NotFoundException {
     HttpPost post = new HttpPost("/suspend");
-    List<BasicNameValuePair> params = new ArrayList<BasicNameValuePair>();
+    List<BasicNameValuePair> params = new ArrayList<>();
     params.add(new BasicNameValuePair("id", Long.toString(workflowInstanceId)));
     try {
-      post.setEntity(new UrlEncodedFormEntity(params));
+      post.setEntity(new UrlEncodedFormEntity(params, "UTF-8"));
     } catch (UnsupportedEncodingException e) {
       throw new IllegalStateException("Unable to assemble a remote workflow service request", e);
     }
@@ -501,7 +533,7 @@ public class WorkflowServiceRemoteImpl extends RemoteBase implements WorkflowSer
   public WorkflowInstance resume(long workflowInstanceId, Map<String, String> properties) throws NotFoundException,
           UnauthorizedException, WorkflowException, IllegalStateException {
     HttpPost post = new HttpPost("/resume");
-    List<BasicNameValuePair> params = new ArrayList<BasicNameValuePair>();
+    List<BasicNameValuePair> params = new ArrayList<>();
     params.add(new BasicNameValuePair("id", Long.toString(workflowInstanceId)));
     if (properties != null)
       params.add(new BasicNameValuePair("properties", mapToString(properties)));
@@ -543,9 +575,9 @@ public class WorkflowServiceRemoteImpl extends RemoteBase implements WorkflowSer
   public void update(WorkflowInstance workflowInstance) throws WorkflowDatabaseException {
     HttpPost post = new HttpPost("/update");
     try {
-      List<BasicNameValuePair> params = new ArrayList<BasicNameValuePair>();
+      List<BasicNameValuePair> params = new ArrayList<>();
       params.add(new BasicNameValuePair("workflow", WorkflowParser.toXml(workflowInstance)));
-      post.setEntity(new UrlEncodedFormEntity(params));
+      post.setEntity(new UrlEncodedFormEntity(params, "UTF-8"));
     } catch (UnsupportedEncodingException e) {
       throw new IllegalStateException("Unable to assemble a remote workflow service request", e);
     } catch (Exception e) {
@@ -570,9 +602,27 @@ public class WorkflowServiceRemoteImpl extends RemoteBase implements WorkflowSer
    * @see org.opencastproject.workflow.api.WorkflowService#remove(long)
    */
   @Override
-  public void remove(long workflowInstanceId) throws WorkflowDatabaseException, WorkflowParsingException,
-          NotFoundException, UnauthorizedException {
-    HttpDelete delete = new HttpDelete("/remove/" + Long.toString(workflowInstanceId));
+  public void remove(long workflowInstanceId) throws WorkflowDatabaseException, NotFoundException {
+    remove(workflowInstanceId, false);
+  }
+
+  /**
+   * {@inheritDoc}
+   *
+   * @see org.opencastproject.workflow.api.WorkflowService#remove(long, boolean)
+   */
+  @Override
+  public void remove(long workflowInstanceId, boolean force) throws WorkflowDatabaseException, NotFoundException {
+    String deleteString = "/remove/" + Long.toString(workflowInstanceId);
+
+    if (force) {
+      List<NameValuePair> queryStringParams = new ArrayList<NameValuePair>();
+      queryStringParams.add(new BasicNameValuePair("force", "true"));
+      deleteString = deleteString + "?" + URLEncodedUtils.format(queryStringParams, "UTF_8");
+    }
+
+    HttpDelete delete = new HttpDelete(deleteString);
+
     HttpResponse response = getResponse(delete, SC_NO_CONTENT, SC_NOT_FOUND);
     try {
       if (response != null) {
@@ -616,66 +666,6 @@ public class WorkflowServiceRemoteImpl extends RemoteBase implements WorkflowSer
   /**
    * {@inheritDoc}
    *
-   * @see org.opencastproject.workflow.api.WorkflowService#registerWorkflowDefinition(org.opencastproject.workflow.api.WorkflowDefinition)
-   */
-  @Override
-  public void registerWorkflowDefinition(WorkflowDefinition workflow) throws WorkflowDatabaseException {
-    HttpPut put = new HttpPut("/definition");
-    try {
-      List<BasicNameValuePair> params = new ArrayList<BasicNameValuePair>();
-      params.add(new BasicNameValuePair("workflowDefinition", WorkflowParser.toXml(workflow)));
-      put.setEntity(new UrlEncodedFormEntity(params));
-    } catch (UnsupportedEncodingException e) {
-      throw new IllegalStateException("Unable to assemble a remote workflow service request", e);
-    } catch (Exception e) {
-      throw new IllegalStateException("unable to serialize workflow definition to xml");
-    }
-
-    HttpResponse response = getResponse(put, SC_CREATED, SC_PRECONDITION_FAILED);
-    try {
-      if (response != null) {
-        if (SC_PRECONDITION_FAILED == response.getStatusLine().getStatusCode()) {
-          throw new IllegalStateException("A workflow definition with ID '" + workflow.getId()
-                  + "' is already registered.");
-        } else {
-          logger.info("Workflow definition '{}' registered", workflow);
-          return;
-        }
-      }
-    } finally {
-      closeConnection(response);
-    }
-    throw new WorkflowDatabaseException("Unable to register workflow definition " + workflow.getId());
-  }
-
-  /**
-   * {@inheritDoc}
-   *
-   * @see org.opencastproject.workflow.api.WorkflowService#unregisterWorkflowDefinition(java.lang.String)
-   */
-  @Override
-  public void unregisterWorkflowDefinition(String workflowDefinitionId) throws NotFoundException,
-          WorkflowDatabaseException {
-    HttpDelete delete = new HttpDelete("/definition/" + workflowDefinitionId);
-    HttpResponse response = getResponse(delete, SC_NO_CONTENT, SC_NOT_FOUND);
-    try {
-      if (response != null) {
-        if (SC_NOT_FOUND == response.getStatusLine().getStatusCode()) {
-          throw new NotFoundException("Workflow definition '" + workflowDefinitionId + "' not found.");
-        } else {
-          logger.info("Workflow definition '{}' unregistered", workflowDefinitionId);
-          return;
-        }
-      }
-    } finally {
-      closeConnection(response);
-    }
-    throw new WorkflowDatabaseException("Unable to delete workflow definition '" + workflowDefinitionId + "'");
-  }
-
-  /**
-   * {@inheritDoc}
-   *
    * @see org.opencastproject.workflow.api.WorkflowService#addWorkflowListener(org.opencastproject.workflow.api.WorkflowListener)
    */
   @Override
@@ -699,12 +689,12 @@ public class WorkflowServiceRemoteImpl extends RemoteBase implements WorkflowSer
           UnauthorizedException {
     HttpPost post = new HttpPost("/cleanup");
 
-    List<BasicNameValuePair> params = new ArrayList<BasicNameValuePair>();
+    List<BasicNameValuePair> params = new ArrayList<>();
     params.add(new BasicNameValuePair("lifetime", String.valueOf(lifetime)));
     if (state != null)
       params.add(new BasicNameValuePair("state", state.toString()));
     try {
-      post.setEntity(new UrlEncodedFormEntity(params));
+      post.setEntity(new UrlEncodedFormEntity(params, "UTF-8"));
     } catch (UnsupportedEncodingException e) {
       throw new IllegalStateException("Unable to assemble a remote workflow service request", e);
     }
@@ -723,5 +713,21 @@ public class WorkflowServiceRemoteImpl extends RemoteBase implements WorkflowSer
       closeConnection(response);
     }
     throw new WorkflowDatabaseException("Unable to successfully request the workflow cleanup endpoint");
+  }
+
+  @Override
+  public Map<String, Map<String, String>> getWorkflowStateMappings() {
+    HttpGet get = new HttpGet("/statemappings.json");
+    HttpResponse response = getResponse(get);
+    try {
+      if (response != null) {
+        return (Map<String, Map<String, String>>) new JSONParser().parse(IOUtils.toString(response.getEntity().getContent(), "utf-8"));
+      }
+    } catch (Exception e) {
+      throw new IllegalStateException("Unable to parse workflow state mappings");
+    } finally {
+      closeConnection(response);
+    }
+    return new HashMap<>();
   }
 }

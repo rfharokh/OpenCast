@@ -25,7 +25,6 @@ import org.opencastproject.job.api.JobProducer;
 import org.opencastproject.mediapackage.MediaPackage;
 import org.opencastproject.mediapackage.MediaPackageElementFlavor;
 import org.opencastproject.mediapackage.MediaPackageException;
-import org.opencastproject.mediapackage.identifier.HandleException;
 import org.opencastproject.scheduler.api.SchedulerException;
 import org.opencastproject.security.api.UnauthorizedException;
 import org.opencastproject.util.ConfigurationException;
@@ -44,43 +43,6 @@ public interface IngestService extends JobProducer {
 
   String UTC_DATE_FORMAT = "yyyyMMdd'T'HHmmss'Z'";
   String START_DATE_KEY = "ingest_start_date";
-
-  /**
-   * Ingests the compressed mediapackage and starts the default workflow as defined by the
-   * <code>org.opencastproject.workflow.default.definition</code> key, found in the system configuration.
-   *
-   * @param zippedMediaPackage
-   *          A zipped file containing manifest, tracks, catalogs and attachments
-   * @return Workflow instance.
-   * @throws MediaPackageException
-   *           if the mediapackage contained in the zip stream is invalid
-   * @throws IOException
-   *           if reading from the input stream fails
-   * @throws IngestException
-   *           if an unexpected error occurs
-   */
-  WorkflowInstance addZippedMediaPackage(InputStream zippedMediaPackage) throws MediaPackageException, IOException,
-          IngestException;
-
-  /**
-   * Ingests the compressed mediapackage and starts the workflow as defined by <code>workflowDefinitionID</code>.
-   *
-   * @param zippedMediaPackage
-   *          A zipped file containing manifest, tracks, catalogs and attachments
-   * @param workflowDefinitionID
-   *          workflow to be used with this media package
-   * @return WorkflowInstance the workflow instance resulting from this ingested mediapackage
-   * @throws MediaPackageException
-   *           if the mediapackage contained in the zip stream is invalid
-   * @throws IOException
-   *           if reading from the input stream fails
-   * @throws IngestException
-   *           if an unexpected error occurs
-   * @throws NotFoundException
-   *           if the workflow definition was not found
-   */
-  WorkflowInstance addZippedMediaPackage(InputStream zippedMediaPackage, String workflowDefinitionID)
-          throws MediaPackageException, IngestException, IOException, NotFoundException;
 
   /**
    * Ingests the compressed mediapackage and starts the workflow as defined by <code>workflowDefinitionID</code>. The
@@ -147,14 +109,12 @@ public interface IngestService extends JobProducer {
    *
    * @return The created MediaPackage
    * @throws MediaPackageException
-   * @throws HandleException
    * @throws ConfigurationException
    * @throws IOException
    * @throws IngestException
    *           if an unexpected error occurs
    */
-  MediaPackage createMediaPackage() throws MediaPackageException, ConfigurationException, HandleException, IOException,
-          IngestException;
+  MediaPackage createMediaPackage() throws MediaPackageException, ConfigurationException, IOException, IngestException;
 
  /**
    * Create a new MediaPackage in the repository.
@@ -162,14 +122,13 @@ public interface IngestService extends JobProducer {
    *   The Id for the new Mediapackage
    * @return The created MediaPackage
    * @throws MediaPackageException
-   * @throws HandleException
    * @throws ConfigurationException
    * @throws IOException
    * @throws IngestException
    *           if an unexpected error occurs
    */
-  MediaPackage createMediaPackage(String mediaPackageID) throws MediaPackageException, ConfigurationException, HandleException, IOException,
-          IngestException;
+  MediaPackage createMediaPackage(String mediaPackageID) throws MediaPackageException, ConfigurationException,
+          IOException, IngestException;
 
 
   /**
@@ -413,22 +372,6 @@ public interface IngestService extends JobProducer {
    *           if an unexpected error occurs
    */
   WorkflowInstance ingest(MediaPackage mediaPackage) throws IllegalStateException, IngestException;
-
-  /**
-   * Ingests the mediapackage and starts the workflow as defined by <code>workflowDefinitionID</code>.
-   *
-   * @param mediaPackage
-   *          The specific Opencast MediaPackage being ingested
-   * @param workflowDefinitionID
-   *          workflow to be used with this media package
-   * @return Workflow instance id.
-   * @throws IngestException
-   *           if an unexpected error occurs
-   * @throws NotFoundException
-   *           if the workflow defintion can't be found
-   */
-  WorkflowInstance ingest(MediaPackage mediaPackage, String workflowDefinitionID) throws IllegalStateException,
-          IngestException, NotFoundException;
 
   /**
    * Ingests the mediapackage and starts the workflow as defined by <code>workflowDefinitionID</code>. The properties

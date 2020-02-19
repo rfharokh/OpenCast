@@ -23,8 +23,8 @@ package org.opencastproject.workflow.handler.distribution;
 
 import static org.opencastproject.workflow.handler.distribution.EngagePublicationChannel.CHANNEL_ID;
 
-import org.opencastproject.distribution.api.DistributionService;
 import org.opencastproject.distribution.api.DownloadDistributionService;
+import org.opencastproject.distribution.api.StreamingDistributionService;
 import org.opencastproject.job.api.Job;
 import org.opencastproject.job.api.JobContext;
 import org.opencastproject.mediapackage.MediaPackage;
@@ -39,8 +39,6 @@ import org.opencastproject.workflow.api.WorkflowOperationException;
 import org.opencastproject.workflow.api.WorkflowOperationResult;
 import org.opencastproject.workflow.api.WorkflowOperationResult.Action;
 
-import org.apache.commons.lang3.StringUtils;
-import org.osgi.framework.BundleContext;
 import org.osgi.service.component.ComponentContext;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -49,8 +47,6 @@ import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
-import java.util.SortedMap;
-import java.util.TreeMap;
 
 /**
  * Workflow operation for retracting a media package from the engage player.
@@ -60,14 +56,8 @@ public class RetractEngageWorkflowOperationHandler extends AbstractWorkflowOpera
   /** The logging facility */
   private static final Logger logger = LoggerFactory.getLogger(RetractEngageWorkflowOperationHandler.class);
 
-  /** Configuration property id */
-  private static final String STREAMING_URL_PROPERTY = "org.opencastproject.streaming.url";
-
-  /** The configuration options for this handler */
-  private static final SortedMap<String, String> CONFIG_OPTIONS = new TreeMap<String, String>();
-
   /** The streaming distribution service */
-  private DistributionService streamingDistributionService = null;
+  private StreamingDistributionService streamingDistributionService = null;
 
   /** The download distribution service */
   private DownloadDistributionService downloadDistributionService = null;
@@ -75,16 +65,13 @@ public class RetractEngageWorkflowOperationHandler extends AbstractWorkflowOpera
   /** The search service */
   private SearchService searchService = null;
 
-  /** Whether to distribute to streaming server */
-  private boolean distributeStreaming = false;
-
   /**
    * Callback for the OSGi declarative services configuration.
    *
    * @param streamingDistributionService
    *          the streaming distribution service
    */
-  protected void setStreamingDistributionService(DistributionService streamingDistributionService) {
+  protected void setStreamingDistributionService(StreamingDistributionService streamingDistributionService) {
     this.streamingDistributionService = streamingDistributionService;
   }
 
@@ -112,25 +99,11 @@ public class RetractEngageWorkflowOperationHandler extends AbstractWorkflowOpera
   /**
    * {@inheritDoc}
    *
-   * @see org.opencastproject.workflow.api.WorkflowOperationHandler#getConfigurationOptions()
-   */
-  @Override
-  public SortedMap<String, String> getConfigurationOptions() {
-    return CONFIG_OPTIONS;
-  }
-
-  /**
-   * {@inheritDoc}
-   *
    * @see org.opencastproject.workflow.api.AbstractWorkflowOperationHandler#activate(org.osgi.service.component.ComponentContext)
    */
   @Override
   protected void activate(ComponentContext cc) {
     super.activate(cc);
-    BundleContext bundleContext = cc.getBundleContext();
-
-    if (StringUtils.isNotBlank(bundleContext.getProperty(STREAMING_URL_PROPERTY)))
-      distributeStreaming = true;
     }
 
   /**
@@ -167,14 +140,12 @@ public class RetractEngageWorkflowOperationHandler extends AbstractWorkflowOpera
             jobs.add(retractDownloadDistributionJob);
           }
         }
-        if (distributeStreaming) {
+        if (streamingDistributionService.publishToStreaming()) {
           for (MediaPackageElement element : searchMediaPackage.getElements()) {
-            if (distributeStreaming) {
-              Job retractStreamingJob = streamingDistributionService.retract(CHANNEL_ID, searchMediaPackage,
-                      element.getIdentifier());
-              if (retractStreamingJob != null) {
-                jobs.add(retractStreamingJob);
-              }
+            Job retractStreamingJob = streamingDistributionService.retract(CHANNEL_ID, searchMediaPackage,
+                    element.getIdentifier());
+            if (retractStreamingJob != null) {
+              jobs.add(retractStreamingJob);
             }
           }
         }

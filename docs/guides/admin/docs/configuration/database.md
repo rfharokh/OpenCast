@@ -68,10 +68,19 @@ create a database called `opencast` by executing:
 
 Then create a user `opencast` with a password and grant it all necessary rights:
 
-    GRANT SELECT,INSERT,UPDATE,DELETE,CREATE,DROP,INDEX,TRIGGER,CREATE TEMPORARY TABLES ON opencast.*
+    GRANT SELECT,INSERT,UPDATE,DELETE,CREATE TEMPORARY TABLES ON opencast.*
       TO 'opencast'@'localhost' IDENTIFIED BY 'opencast_password';
 
-You can choose another name for the user and database and should use a different password.
+The rights granted here are all that is needed to *run* Opencast. To execute the migration scripts
+used to initialize (see next section) and upgrade the database schema upon releases of new versions
+of Opencast, you need more. If you don't want to do this using the `root` user (which normally
+can do anything), but with a dedicated user called `admin` for the sake of the example,
+you should grant that user the following rights:
+
+    GRANT SELECT,INSERT,UPDATE,DELETE,CREATE,ALTER,DROP,INDEX,TRIGGER,CREATE TEMPORARY TABLES,REFERENCES ON opencast.*
+      TO 'admin'@'localhost' IDENTIFIED BY 'opencast_admin_password';
+
+You can choose other names for the users and the database, and you **should** use a different password.
 
 In a distributed system, apart from `'username'@'localhost'` (which would allow access from the local machine only),
 you should grant a external user access to the database by running the same command for a user like
@@ -92,10 +101,10 @@ To set up the database structure you can (and should!) use the Opencast ddl scri
 `…/docs/scripts/ddl/mysql5.sql` or download them from GitHub.
 
 To import the database structure using the MariaDB client, switch to the directory that contains the `mysql5.sql` file,
-run the client with the user you created in the previous step (`-u opencast`) and switch to the database you want to use
+run the client with a user priviledged to create the database structure and switch to the database you want to use
 (e.g. `opencast`):
 
-    mysql -u opencast -p opencast
+    mysql -u root -p opencast
 
 Run the ddl script:
 
@@ -103,7 +112,7 @@ Run the ddl script:
 
 Alternatively, you can import the script directly from the command line:
 
-    mysql -u opencast -p opencast < …/docs/scripts/ddl/mysql5.sql
+    mysql -u root -p opencast < …/docs/scripts/ddl/mysql5.sql
 
 Now, ensure the MariaDB [`wait_timeout`](https://mariadb.com/kb/en/library/server-system-variables/) in `mariadb.cnf`
 or `mysql.cnf` is bigger than `org.opencastproject.db.jdbc.pool.max.idle.time` in Opencast's `custom.properties`.
@@ -118,15 +127,7 @@ configuration.
 The following changes must be made in `…/etc/custom.properties` (`/etc/opencast/custom.properties` in a package
 installation).
 
-1. Change the following configuration key (uncomment if necessary):
-
-        org.opencastproject.db.ddl.generation=false
-
-    If set to true, the database structure will be generated automatically. It works, but without all the database
-    optimizations implemented in the DDL scripts used in the step 2. While convenient for development, you should never
-    set this to `true` in a production environment.
-
-2. Configure Opencast to use MariaDB/MySQL:
+1. Configure Opencast to use MariaDB/MySQL:
 
         org.opencastproject.db.vendor=MySQL
 

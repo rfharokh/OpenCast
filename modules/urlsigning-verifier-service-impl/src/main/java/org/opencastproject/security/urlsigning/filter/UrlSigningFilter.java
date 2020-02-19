@@ -36,6 +36,7 @@ import org.slf4j.LoggerFactory;
 
 import java.io.IOException;
 import java.util.Dictionary;
+import java.util.Enumeration;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.regex.Matcher;
@@ -164,9 +165,8 @@ public class UrlSigningFilter implements Filter, ManagedService {
 
       }
     } catch (UrlSigningException e) {
-      logger.error("Unable to verify request for '{}' with query string '{}' from host '{}' because: {}",
-              httpRequest.getRequestURL(), httpRequest.getQueryString(), httpRequest.getRemoteAddr(),
-              ExceptionUtils.getStackTrace(e));
+      logger.error("Unable to verify request for '{}' with query string '{}' from host '{}' because:",
+              httpRequest.getRequestURL(), httpRequest.getQueryString(), httpRequest.getRemoteAddr(), e);
       httpResponse.sendError(HttpServletResponse.SC_INTERNAL_SERVER_ERROR,
               String.format("%s is unable to verify request for '%s' with query string '%s' from host '%s' because: %s",
                       getName(), httpRequest.getRequestURL(), httpRequest.getQueryString(), httpRequest.getRemoteAddr(),
@@ -189,7 +189,7 @@ public class UrlSigningFilter implements Filter, ManagedService {
   }
 
   @Override
-  public void updated(Dictionary properties) throws ConfigurationException {
+  public void updated(Dictionary<String, ?> properties) throws ConfigurationException {
     logger.info("Updating UrlSigningFilter");
 
     Option<String> enableFilterConfig = OsgiUtil.getOptCfg(properties, ENABLE_FILTER_CONFIG_KEY);
@@ -230,24 +230,22 @@ public class UrlSigningFilter implements Filter, ManagedService {
       return;
     }
 
-    String urlRegularExpression = null;
-    int i = 1;
-    while (true) {
-      // Create the configuration prefixes
-      urlRegularExpression = new StringBuilder(URL_REGEX_PREFIX).append(".").append(i).toString();
-      // Read the url regular expression
-      String urlRegularExpressionValue = StringUtils.trimToNull((String) properties.get(urlRegularExpression));
-      logger.debug("Looking for configuration of {} and found '{}'", urlRegularExpression, urlRegularExpressionValue);
+    Enumeration<String> propertyKeys = properties.keys();
+    while (propertyKeys.hasMoreElements()) {
+      String propertyKey = propertyKeys.nextElement();
+      if (!propertyKey.startsWith(URL_REGEX_PREFIX)) continue;
+
+      String urlRegularExpression = StringUtils.trimToNull((String) properties.get(propertyKey));
+      logger.debug("Looking for configuration of {} and found '{}'", propertyKey, urlRegularExpression);
       // Has the url signing provider been fully configured
-      if (urlRegularExpressionValue == null) {
+      if (urlRegularExpression == null) {
         logger.debug(
                 "Unable to configure url regular expression with id '{}' because it is missing. Stopping to look for new keys.",
-                urlRegularExpression);
+                propertyKey);
         break;
       }
 
-      urlRegularExpressions.add(urlRegularExpressionValue);
-      i++;
+      urlRegularExpressions.add(urlRegularExpression);
     }
 
     if (urlRegularExpressions.size() == 0) {

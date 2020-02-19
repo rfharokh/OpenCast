@@ -26,13 +26,9 @@ import static org.junit.Assert.assertEquals;
 import static org.opencastproject.test.rest.RestServiceTestEnv.localhostRandomPort;
 import static org.opencastproject.test.rest.RestServiceTestEnv.testEnvForClasses;
 
-import org.opencastproject.adminui.api.SortType;
-import org.opencastproject.rest.BulkOperationResult;
 import org.opencastproject.test.rest.RestServiceTestEnv;
 
-import org.apache.commons.io.IOUtils;
 import org.apache.http.HttpStatus;
-import org.json.simple.JSONArray;
 import org.json.simple.JSONObject;
 import org.json.simple.parser.JSONParser;
 import org.json.simple.parser.ParseException;
@@ -40,7 +36,6 @@ import org.junit.AfterClass;
 import org.junit.Assert;
 import org.junit.Before;
 import org.junit.BeforeClass;
-import org.junit.Ignore;
 import org.junit.Test;
 
 import java.io.IOException;
@@ -137,119 +132,6 @@ public class SeriesEndpointTest {
             .when().get(rt.host("/series.json"));
   }
 
-  @Ignore
-  @Test
-  public void testSeriesMessages() throws ParseException, IOException {
-    JSONArray actual = (JSONArray) parser.parse(given().pathParam("seriesId", "uuid").expect()
-            .statusCode(HttpStatus.SC_OK).contentType(ContentType.JSON).when().get(rt.host("/{seriesId}/messages"))
-            .asString());
-    Assert.assertEquals(3, actual.size());
-    JSONObject message = (JSONObject) actual.get(0);
-    JSONObject person = (JSONObject) message.get("person");
-    Assert.assertEquals("test3@email.ch", person.get("email"));
-    JSONArray errors = (JSONArray) message.get("errors");
-    Assert.assertEquals(2, errors.size());
-    JSONObject error = (JSONObject) errors.get(0);
-    Assert.assertEquals("source", error.get("source"));
-  }
-
-  @Ignore
-  @Test
-  public void testSeriesMessagesDateSortedAsc() throws ParseException, IOException {
-    JSONArray actual = (JSONArray) parser.parse(given().pathParam("seriesId", "identifier").expect()
-            .statusCode(HttpStatus.SC_OK).contentType(ContentType.JSON).when()
-            .get(rt.host("/{seriesId}/messages?sort=" + SortType.DATE)).asString());
-    Assert.assertEquals(3, actual.size());
-    JSONObject message = (JSONObject) actual.get(0);
-    JSONObject person = (JSONObject) message.get("person");
-    Assert.assertEquals("test1@email.ch", person.get("email"));
-    JSONArray errors = (JSONArray) message.get("errors");
-    Assert.assertEquals(2, errors.size());
-    JSONObject error = (JSONObject) errors.get(0);
-    Assert.assertEquals("source", error.get("source"));
-  }
-
-  @Ignore
-  @Test
-  public void testSeriesMessagesDateSortedDesc() throws ParseException, IOException {
-    JSONArray actual = (JSONArray) parser.parse(given().pathParam("seriesId", "identifier").expect()
-            .statusCode(HttpStatus.SC_OK).contentType(ContentType.JSON).when()
-            .get(rt.host("/{seriesId}/messages?sort=" + SortType.DATE_DESC)).asString());
-    Assert.assertEquals(3, actual.size());
-    JSONObject message = (JSONObject) actual.get(0);
-    JSONObject person = (JSONObject) message.get("person");
-    Assert.assertEquals("test3@email.ch", person.get("email"));
-    JSONArray errors = (JSONArray) message.get("errors");
-    Assert.assertEquals(2, errors.size());
-    JSONObject error = (JSONObject) errors.get(0);
-    Assert.assertEquals("source", error.get("source"));
-  }
-
-  @Ignore
-  @Test
-  public void testSeriesMessagesSenderSortedAsc() throws ParseException, IOException {
-    JSONArray actual = (JSONArray) parser.parse(given().pathParam("seriesId", "identifier").expect()
-            .statusCode(HttpStatus.SC_OK).contentType(ContentType.JSON).when()
-            .get(rt.host("/{seriesId}/messages?sort=" + SortType.SENDER)).asString());
-    Assert.assertEquals(3, actual.size());
-    JSONObject message = (JSONObject) actual.get(0);
-    JSONObject person = (JSONObject) message.get("person");
-    Assert.assertEquals("test1@email.ch", person.get("email"));
-    JSONArray errors = (JSONArray) message.get("errors");
-    Assert.assertEquals(2, errors.size());
-    JSONObject error = (JSONObject) errors.get(0);
-    Assert.assertEquals("source", error.get("source"));
-  }
-
-  @Ignore
-  @Test
-  public void testSeriesMessagesSenderSortedDesc() throws ParseException, IOException {
-    JSONArray actual = (JSONArray) parser.parse(given().pathParam("seriesId", "uuid").expect()
-            .statusCode(HttpStatus.SC_OK).contentType(ContentType.JSON).when()
-            .get(rt.host("/{seriesId}/messages?sort=" + SortType.SENDER_DESC)).asString());
-    Assert.assertEquals(3, actual.size());
-    JSONObject message = (JSONObject) actual.get(0);
-    JSONObject person = (JSONObject) message.get("person");
-    Assert.assertEquals("test3@email.ch", person.get("email"));
-    JSONArray errors = (JSONArray) message.get("errors");
-    Assert.assertEquals(2, errors.size());
-    JSONObject error = (JSONObject) errors.get(0);
-    Assert.assertEquals("source", error.get("source"));
-  }
-
-  @Ignore
-  @Test
-  public void testCreateNewSeries() throws Exception {
-    String seriesMetadataString = IOUtils.toString(getClass().getResource("/postNewSeriesMetadata.json"), "UTF-8");
-
-    given().expect().statusCode(HttpStatus.SC_BAD_REQUEST).when().post(rt.host("new"));
-    given().formParam("metadata", "adsd").expect().statusCode(HttpStatus.SC_BAD_REQUEST).when().post(rt.host("new"));
-
-    String result = given().formParam("metadata", seriesMetadataString).expect().statusCode(HttpStatus.SC_CREATED)
-            .when().post(rt.host("new")).asString();
-    Assert.assertEquals("23", result);
-  }
-
-  @Ignore
-  @Test
-  public void testDelete() throws Exception {
-    BulkOperationResult emptyResult = new BulkOperationResult();
-    BulkOperationResult foundResult = new BulkOperationResult();
-    foundResult.addOk("1");
-    foundResult.addOk("2");
-    foundResult.addOk("3");
-    foundResult.addNotFound("4");
-    foundResult.addServerError("5");
-    given().expect().statusCode(HttpStatus.SC_BAD_REQUEST).when().post(rt.host("/deleteSeries"));
-    given().body("{}").expect().statusCode(HttpStatus.SC_BAD_REQUEST).when().post(rt.host("/deleteSeries"));
-    String result = given().body("[]").expect().statusCode(HttpStatus.SC_OK).when().post(rt.host("/deleteSeries"))
-            .asString();
-    assertEquals(emptyResult.toJson(), result);
-    result = given().body("[1,2,3,4,5]").expect().statusCode(HttpStatus.SC_OK).when().post(rt.host("/deleteSeries"))
-            .asString();
-    assertEquals(foundResult.toJson(), result);
-  }
-
   @Test
   public void testGetTheme() throws ParseException {
     String foundId = "1";
@@ -304,9 +186,6 @@ public class SeriesEndpointTest {
 
     given().pathParam("seriesId", validSeriesId).formParam("acl", validAcl).formParam("override", "true").expect()
             .statusCode(HttpStatus.SC_OK).when().post(rt.host("/{seriesId}/access"));
-
-    given().pathParam("seriesId", "2").formParam("acl", validAcl).formParam("override", "true").expect()
-            .statusCode(HttpStatus.SC_CONFLICT).when().post(rt.host("/{seriesId}/access"));
   }
 
   @Before

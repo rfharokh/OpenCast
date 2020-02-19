@@ -21,15 +21,29 @@ Building on most other Unix-like operating systems should be very much alike.
 Installation from Repository
 ----------------------------
 
-There is an RPM repository available for some operating systems. It provides packages containing pre-configured and
+There are package repositories available for multiple operating systems. It provides packages containing pre-configured and
 pre-built Opencast installations.
 
-* [RedHat Enterprise Linux](rpm-rhel-sl-centos.md)
-* [CentOS](rpm-rhel-sl-centos.md)
-* [Scientific Linux](rpm-rhel-sl-centos.md)
+* [RedHat Enterprise Linux 7](rpm-el7.md)
+* [CentOS 7](rpm-el7.md)
+* [Scientific Linux 7](rpm-el7.md)
 * [Fedora](rpm-fedora.md)
 * [Debian](debs.md)
 * [Ubuntu](debs.md)
+
+Experimental
+
+* [RedHat Enterprise Linux 8](rpm-el8.md)
+* [CentOS 8](rpm-el8.md)
+
+
+Installation via Script
+-----------------------
+
+We provide configuration scripts to install and configure Opencast automatically.  These scripts rely on the
+packages from the repository above.
+
+* [Ansible](ansible.md)
 
 
 Installation with Docker

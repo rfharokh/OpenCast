@@ -61,31 +61,35 @@ import org.opencastproject.security.api.User;
 import org.opencastproject.util.NotFoundException;
 import org.opencastproject.util.data.Option;
 
-import com.entwinemedia.fn.Fn;
-
 import org.apache.commons.lang3.StringUtils;
-import org.elasticsearch.action.delete.DeleteRequestBuilder;
+import org.elasticsearch.action.DocWriteResponse;
+import org.elasticsearch.action.delete.DeleteRequest;
 import org.elasticsearch.action.delete.DeleteResponse;
-import org.elasticsearch.action.search.SearchRequestBuilder;
+import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
+import org.elasticsearch.action.support.WriteRequest;
+import org.elasticsearch.client.RequestOptions;
+import org.elasticsearch.common.document.DocumentField;
 import org.elasticsearch.search.SearchHit;
-import org.elasticsearch.search.SearchHitField;
+import org.elasticsearch.search.aggregations.AggregationBuilder;
 import org.elasticsearch.search.aggregations.AggregationBuilders;
 import org.elasticsearch.search.aggregations.bucket.terms.Terms;
 import org.elasticsearch.search.aggregations.bucket.terms.Terms.Bucket;
-import org.elasticsearch.search.aggregations.bucket.terms.TermsBuilder;
+import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.io.IOException;
 import java.io.Serializable;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 import java.util.concurrent.CancellationException;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.FutureTask;
+import java.util.function.Function;
 
 import javax.xml.bind.Unmarshaller;
 
@@ -248,15 +252,7 @@ public abstract class AbstractSearchIndex extends AbstractElasticsearchIndex {
    *           if the event cannot be added or updated
    */
   public void addOrUpdate(Event event) throws SearchIndexException {
-    logger.debug("Adding resource {} to search index", event);
-
-    // if (!preparedIndices.contains(resource.getURI().getSite().getIdentifier())) {
-    // try {
-    // createIndex(resource.getURI().getSite());
-    // } catch (IOException e) {
-    // throw new SearchIndexException(e);
-    // }
-    // }
+    logger.debug("Adding event {} to search index", event.getIdentifier());
 
     // Add the resource to the index
     SearchMetadataCollection inputDocument = EventIndexUtils.toSearchMetadata(event);
@@ -279,15 +275,7 @@ public abstract class AbstractSearchIndex extends AbstractElasticsearchIndex {
    *           Thrown if unable to add or update the group.
    */
   public void addOrUpdate(Group group) throws SearchIndexException {
-    logger.debug("Adding resource {} to search index", group);
-
-    // if (!preparedIndices.contains(resource.getURI().getSite().getIdentifier())) {
-    // try {
-    // createIndex(resource.getURI().getSite());
-    // } catch (IOException e) {
-    // throw new SearchIndexException(e);
-    // }
-    // }
+    logger.debug("Adding group {} to search index", group.getIdentifier());
 
     // Add the resource to the index
     SearchMetadataCollection inputDocument = GroupIndexUtils.toSearchMetadata(group);
@@ -308,15 +296,7 @@ public abstract class AbstractSearchIndex extends AbstractElasticsearchIndex {
    * @throws SearchIndexException
    */
   public void addOrUpdate(Series series) throws SearchIndexException {
-    logger.debug("Adding resource {} to search index", series);
-
-    // if (!preparedIndices.contains(resource.getURI().getSite().getIdentifier())) {
-    // try {
-    // createIndex(resource.getURI().getSite());
-    // } catch (IOException e) {
-    // throw new SearchIndexException(e);
-    // }
-    // }
+    logger.debug("Adding series {} to search index", series.getIdentifier());
 
     // Add the resource to the index
     SearchMetadataCollection inputDocument = SeriesIndexUtils.toSearchMetadata(series);
@@ -339,15 +319,7 @@ public abstract class AbstractSearchIndex extends AbstractElasticsearchIndex {
    *           Thrown if unable to add or update the theme.
    */
   public void addOrUpdate(Theme theme) throws SearchIndexException {
-    logger.debug("Adding resource {} to search index", theme);
-
-    // if (!preparedIndices.contains(resource.getURI().getSite().getIdentifier())) {
-    // try {
-    // createIndex(resource.getURI().getSite());
-    // } catch (IOException e) {
-    // throw new SearchIndexException(e);
-    // }
-    // }
+    logger.debug("Adding theme {} to search index", theme.getIdentifier());
 
     // Add the resource to the index
     SearchMetadataCollection inputDocument = ThemeIndexUtils.toSearchMetadata(theme);
@@ -362,15 +334,18 @@ public abstract class AbstractSearchIndex extends AbstractElasticsearchIndex {
   }
 
   @Override
-  public boolean delete(String documentType, String uid) throws SearchIndexException {
-    logger.debug("Removing element with id '{}' from searching index '{}'", uid, getIndexName());
-
-    DeleteRequestBuilder deleteRequest = getSearchClient().prepareDelete(getIndexName(), documentType, uid);
-    deleteRequest.setRefresh(true);
-    DeleteResponse delete = deleteRequest.execute().actionGet();
-    if (!delete.isFound()) {
-      logger.trace("Document {} to delete was not found on index '{}'", uid, getIndexName());
-      return false;
+  public boolean delete(String type, String uid) throws SearchIndexException {
+    logger.debug("Removing element with id '{}' from searching index '{}'", uid, getIndexName(type));
+    final DeleteRequest deleteRequest = new DeleteRequest(getIndexName(type), uid)
+            .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
+    try {
+      final DeleteResponse delete = getClient().delete(deleteRequest, RequestOptions.DEFAULT);
+      if (delete.getResult().equals(DocWriteResponse.Result.NOT_FOUND)) {
+        logger.trace("Document {} to delete was not found on index '{}'", uid, getIndexName(type));
+        return false;
+      }
+    } catch (IOException e) {
+      throw new SearchIndexException(e);
     }
 
     return true;
@@ -382,7 +357,7 @@ public abstract class AbstractSearchIndex extends AbstractElasticsearchIndex {
    * @return If an event has a record of being a schedule, workflow or archive event.
    */
   protected boolean toDelete(Event event) {
-    boolean hasScheduling = event.getSchedulingStatus() != null;
+    boolean hasScheduling = event.isScheduledEvent();
     boolean hasWorkflow = event.getWorkflowId() != null;
     boolean hasArchive = event.getArchiveVersion() != null;
     return !hasScheduling && !hasWorkflow && !hasArchive;
@@ -436,12 +411,7 @@ public abstract class AbstractSearchIndex extends AbstractElasticsearchIndex {
     if (event == null)
       throw new NotFoundException("No event with id " + uid + " found.");
 
-    event.setOptedOut(null);
-    event.setBlacklisted(null);
-    event.setReviewDate(null);
-    event.setReviewStatus(null);
-    event.setSchedulingStatus(null);
-    event.setRecordingStatus(null);
+    event.setAgentId(null);
 
     if (toDelete(event)) {
       delete(Event.DOCUMENT_TYPE, uid.concat(organization));
@@ -477,7 +447,6 @@ public abstract class AbstractSearchIndex extends AbstractElasticsearchIndex {
       event.setWorkflowId(null);
       event.setWorkflowDefinitionId(null);
       event.setWorkflowState(null);
-      event.setWorkflowScheduledDate(null);
     }
 
     if (toDelete(event)) {
@@ -496,19 +465,16 @@ public abstract class AbstractSearchIndex extends AbstractElasticsearchIndex {
    */
   public SearchResult<Event> getByQuery(EventSearchQuery query) throws SearchIndexException {
     logger.debug("Searching index using event query '{}'", query);
-    // Create the request builder
-    SearchRequestBuilder requestBuilder = getSearchRequestBuilder(query, new EventQueryBuilder(query));
+    // Create the request
+    final SearchRequest searchRequest = getSearchRequest(query, new EventQueryBuilder(query));
 
     try {
-      Unmarshaller unmarshaller = Event.createUnmarshaller();
-      return executeQuery(query, requestBuilder, new Fn<SearchMetadataCollection, Event>() {
-        @Override
-        public Event apply(SearchMetadataCollection metadata) {
-          try {
-            return EventIndexUtils.toRecordingEvent(metadata, unmarshaller);
-          } catch (IOException e) {
-            return chuck(e);
-          }
+      final Unmarshaller unmarshaller = Event.createUnmarshaller();
+      return executeQuery(query, searchRequest, metadata -> {
+        try {
+          return EventIndexUtils.toRecordingEvent(metadata, unmarshaller);
+        } catch (IOException e) {
+          return chuck(e);
         }
       });
     } catch (Throwable t) {
@@ -527,19 +493,16 @@ public abstract class AbstractSearchIndex extends AbstractElasticsearchIndex {
 
     logger.debug("Searching index using group query '{}'", query);
 
-    // Create the request builder
-    SearchRequestBuilder requestBuilder = getSearchRequestBuilder(query, new GroupQueryBuilder(query));
+    // Create the request
+    final SearchRequest searchRequest = getSearchRequest(query, new GroupQueryBuilder(query));
 
     try {
-      Unmarshaller unmarshaller = Group.createUnmarshaller();
-      return executeQuery(query, requestBuilder, new Fn<SearchMetadataCollection, Group>() {
-        @Override
-        public Group apply(SearchMetadataCollection metadata) {
-          try {
-            return GroupIndexUtils.toGroup(metadata, unmarshaller);
-          } catch (IOException e) {
-            return chuck(e);
-          }
+      final Unmarshaller unmarshaller = Group.createUnmarshaller();
+      return executeQuery(query, searchRequest, metadata -> {
+        try {
+          return GroupIndexUtils.toGroup(metadata, unmarshaller);
+        } catch (IOException e) {
+          return chuck(e);
         }
       });
     } catch (Throwable t) {
@@ -556,18 +519,15 @@ public abstract class AbstractSearchIndex extends AbstractElasticsearchIndex {
    */
   public SearchResult<Series> getByQuery(SeriesSearchQuery query) throws SearchIndexException {
     logger.debug("Searching index using series query '{}'", query);
-    // Create the request builder
-    SearchRequestBuilder requestBuilder = getSearchRequestBuilder(query, new SeriesQueryBuilder(query));
+    // Create the request
+    final SearchRequest searchRequest = getSearchRequest(query, new SeriesQueryBuilder(query));
     try {
-      Unmarshaller unmarshaller = Series.createUnmarshaller();
-      return executeQuery(query, requestBuilder, new Fn<SearchMetadataCollection, Series>() {
-        @Override
-        public Series apply(SearchMetadataCollection metadata) {
-          try {
-            return SeriesIndexUtils.toSeries(metadata, unmarshaller);
-          } catch (IOException e) {
-            return chuck(e);
-          }
+      final Unmarshaller unmarshaller = Series.createUnmarshaller();
+      return executeQuery(query, searchRequest, metadata -> {
+        try {
+          return SeriesIndexUtils.toSeries(metadata, unmarshaller);
+        } catch (IOException e) {
+          return chuck(e);
         }
       });
     } catch (Throwable t) {
@@ -584,18 +544,15 @@ public abstract class AbstractSearchIndex extends AbstractElasticsearchIndex {
    */
   public SearchResult<Theme> getByQuery(ThemeSearchQuery query) throws SearchIndexException {
     logger.debug("Searching index using theme query '{}'", query);
-    // Create the request builder
-    SearchRequestBuilder requestBuilder = getSearchRequestBuilder(query, new ThemeQueryBuilder(query));
+    // Create the request
+    final SearchRequest searchRequest = getSearchRequest(query, new ThemeQueryBuilder(query));
 
     try {
-      return executeQuery(query, requestBuilder, new Fn<SearchMetadataCollection, Theme>() {
-        @Override
-        public Theme apply(SearchMetadataCollection metadata) {
-          try {
-            return ThemeIndexUtils.toTheme(metadata);
-          } catch (IOException e) {
-            return chuck(e);
-          }
+      return executeQuery(query, searchRequest, metadata -> {
+        try {
+          return ThemeIndexUtils.toTheme(metadata);
+        } catch (IOException e) {
+          return chuck(e);
         }
       });
     } catch (Throwable t) {
@@ -614,22 +571,29 @@ public abstract class AbstractSearchIndex extends AbstractElasticsearchIndex {
    */
   public List<String> getTermsForField(String field, Option<String[]> types) {
     final String facetName = "terms";
-    TermsBuilder aggBuilder = AggregationBuilders.terms(facetName).field(field);
-    SearchRequestBuilder search = getSearchClient().prepareSearch(getIndexName()).addAggregation(aggBuilder);
-
-    if (types.isSome())
-      search = search.setTypes(types.get());
-
-    SearchResponse response = search.execute().actionGet();
-
-    List<String> terms = new ArrayList<>();
-    Terms aggs = response.getAggregations().get(facetName);
-
-    for (Bucket bucket : aggs.getBuckets()) {
-      terms.add(bucket.getKey().toString());
+    final AggregationBuilder aggBuilder = AggregationBuilders.terms(facetName).field(field);
+    final SearchSourceBuilder searchSource = new SearchSourceBuilder().aggregation(aggBuilder);
+    final List<String> indices = new ArrayList<>();
+    if (types.isSome()) {
+      Arrays.stream(types.get()).forEach(t -> indices.add(this.getIndexName(t)));
+    } else {
+      Arrays.stream(getDocumentTypes()).forEach(t->indices.add(this.getIndexName(t)));
     }
+    final SearchRequest searchRequest = new SearchRequest(indices.toArray(new String[0])).source(searchSource);
+    try {
+      final SearchResponse response = getClient().search(searchRequest, RequestOptions.DEFAULT);
 
-    return terms;
+      final List<String> terms = new ArrayList<>();
+      final Terms aggs = response.getAggregations().get(facetName);
+
+      for (Bucket bucket : aggs.getBuckets()) {
+        terms.add(bucket.getKey().toString());
+      }
+
+      return terms;
+    } catch (IOException e) {
+      return chuck(e);
+    }
   }
 
   /**
@@ -637,28 +601,28 @@ public abstract class AbstractSearchIndex extends AbstractElasticsearchIndex {
    *
    * @param query
    *          The query to use to find the results
-   * @param requestBuilder
+   * @param request
    *          The builder to use to create the query.
    * @param toSearchResult
    *          The function to convert the results to a {@link SearchResult}
    * @return A {@link SearchResult} containing the relevant objects.
    * @throws SearchIndexException
    */
-  protected <T> SearchResult<T> executeQuery(SearchQuery query, SearchRequestBuilder requestBuilder,
-          Fn<SearchMetadataCollection, T> toSearchResult) throws SearchIndexException {
+  protected <T> SearchResult<T> executeQuery(SearchQuery query, SearchRequest request,
+          Function<SearchMetadataCollection, T> toSearchResult) throws SearchIndexException {
     // Execute the query and try to get hold of a query response
     SearchResponse response = null;
     try {
-      response = getSearchClient().search(requestBuilder.request()).actionGet();
+      response = getClient().search(request, RequestOptions.DEFAULT);
     } catch (Throwable t) {
       throw new SearchIndexException(t);
     }
 
     // Create and configure the query result
-    long hits = response.getHits().getTotalHits();
+    long hits = getTotalHits(response.getHits());
     long size = response.getHits().getHits().length;
     SearchResultImpl<T> result = new SearchResultImpl<>(query, hits, size);
-    result.setSearchTime(response.getTookInMillis());
+    result.setSearchTime(response.getTook().millis());
 
     // Walk through response and create new items with title, creator, etc:
     for (SearchHit doc : response.getHits()) {
@@ -667,7 +631,7 @@ public abstract class AbstractSearchIndex extends AbstractElasticsearchIndex {
       SearchMetadataCollection metadata = new SearchMetadataCollection(doc.getType());
       metadata.setIdentifier(doc.getId());
 
-      for (SearchHitField field : doc.getFields().values()) {
+      for (DocumentField field : doc.getFields().values()) {
         String name = field.getName();
         SearchMetadata<Object> m = new SearchMetadataImpl<>(name);
         // TODO: Add values with more care (localized, correct type etc.)
@@ -697,7 +661,6 @@ public abstract class AbstractSearchIndex extends AbstractElasticsearchIndex {
       } catch (Throwable t) {
         logger.warn("Error during search result serialization: '{}'. Skipping this search result.", t.getMessage());
         size--;
-        continue;
       }
     }
 

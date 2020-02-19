@@ -59,27 +59,6 @@ public interface WorkflowService {
   void removeWorkflowListener(WorkflowListener listener);
 
   /**
-   * Registers a new workflow definition. If a workflow definition with the same identifier is already registered, it
-   * will be replaced.
-   *
-   * @param workflow
-   *          the new workflow definition
-   * @throws WorkflowDatabaseException
-   *           if there is a problem registering the workflow definition
-   */
-  void registerWorkflowDefinition(WorkflowDefinition workflow) throws WorkflowDatabaseException;
-
-  /**
-   * Removes the workflow definition with this identifier.
-   *
-   * @throws NotFoundException
-   *           if there is no workflow registered with this identifier
-   * @throws WorkflowDatabaseException
-   *           if there is a problem unregistering the workflow definition
-   */
-  void unregisterWorkflowDefinition(String workflowDefinitionId) throws NotFoundException, WorkflowDatabaseException;
-
-  /**
    * Returns the {@link WorkflowDefinition} identified by <code>name</code>.
    *
    * @param id
@@ -254,6 +233,25 @@ public interface WorkflowService {
           UnauthorizedException, WorkflowStateException;
 
   /**
+   * Permanently removes a workflow instance. Option to remove a workflow instance regardless of its status.
+   *
+   * @param workflowInstanceId
+   *          the workflow instance identifier
+   * @param force
+   *          remove the workflow instance no matter the status
+   * @throws WorkflowDatabaseException
+   *           if there is a problem writing to the database
+   * @throws NotFoundException
+   *           if no workflow instance with the given identifier could be found
+   * @throws UnauthorizedException
+   *           if the current user does not have write permissions on the workflow instance
+   * @throws WorkflowStateException
+   *           if the workflow instance is in a disallowed state
+   */
+  void remove(long workflowInstanceId, boolean force) throws WorkflowDatabaseException, WorkflowParsingException,
+          NotFoundException, UnauthorizedException, WorkflowStateException;
+
+  /**
    * Temporarily suspends a started workflow instance.
    *
    * @param workflowInstanceId
@@ -339,4 +337,9 @@ public interface WorkflowService {
    */
   void cleanupWorkflowInstances(int lifetime, WorkflowInstance.WorkflowState state) throws WorkflowDatabaseException,
           UnauthorizedException;
+
+  /**
+   * @return All configured workflow state mappings
+   */
+  Map<String, Map<String, String>> getWorkflowStateMappings();
 }

@@ -57,6 +57,8 @@ import org.opencastproject.util.doc.rest.RestService;
 import org.apache.commons.lang3.StringUtils;
 import org.apache.commons.lang3.math.NumberUtils;
 import org.osgi.service.component.ComponentContext;
+import org.osgi.service.component.annotations.Component;
+import org.osgi.service.component.annotations.Reference;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -87,7 +89,17 @@ import javax.ws.rs.core.Response;
                 + "not working and is either restarting or has failed",
         "A status code 500 means a general failure has occurred which is not recoverable and was not anticipated. In "
                 + "other words, there is a bug! You should file an error report with your server logs from the time when the "
-                + "error occurred: <a href=\"https://opencast.jira.com\">Opencast Issue Tracker</a>" })
+                + "error occurred: <a href=\"https://github.com/opencast/opencast/issues\">Opencast Issue Tracker</a>" })
+@Component(
+  property = {
+    "service.description=Composer REST Endpoint",
+    "opencast.service.type=org.opencastproject.composer",
+    "opencast.service.path=/composer/ffmpeg",
+    "opencast.service.jobproducer=true"
+  },
+  immediate = true,
+  service = ComposerRestService.class
+)
 public class ComposerRestService extends AbstractJobProducerEndpoint {
 
   /** The logger */
@@ -120,33 +132,6 @@ public class ComposerRestService extends AbstractJobProducerEndpoint {
           + "  </audio>\n"
           + "</track>";
 
-  private static final String MEDIA_TRACK_DEFAULT = "<track id=\"track-3\">\n"
-          + "  <mimetype>video/quicktime</mimetype>\n"
-          + "  <url>serverUrl/workflow/samples/slidechanges.mov</url>\n"
-          + "  <checksum type=\"md5\">4cbcc9223c0425a54c3f253823487d5f</checksum>\n"
-          + "  <duration>27626</duration>\n"
-          + "  <video>\n"
-          + "    <resolution>1024x768</resolution>"
-          + "  </video>\n"
-          + "</track>";
-
-  private static final String CAPTIONS_CATALOGS_DEFAULT = "<captions>\n"
-          + "  <catalog id=\"catalog-1\">\n"
-          + "    <mimetype>application/x-subrip</mimetype>\n"
-          + "    <url>serverUrl/workflow/samples/captions_test_eng.srt</url>\n"
-          + "    <checksum type=\"md5\">55d70b062896aa685e2efc4226b32980</checksum>\n" + "    <tags>\n"
-          + "      <tag>lang:en</tag>\n"
-          + "    </tags>\n"
-          + "  </catalog>\n"
-          + "  <catalog id=\"catalog-2\">\n"
-          + "    <mimetype>application/x-subrip</mimetype>\n"
-          + "    <url>serverUrl/workflow/samples/captions_test_fra.srt</url>\n"
-          + "    <checksum type=\"md5\">8f6cd99bbb6d591107f3b5c47ee51f2c</checksum>\n" + "    <tags>\n"
-          + "      <tag>lang:fr</tag>\n"
-          + "    </tags>\n"
-          + "  </catalog>\n"
-          + "</captions>\n";
-
   private static final String IMAGE_ATTACHMENT_DEFAULT = "<attachment id=\"track-3\">\n"
           + "  <mimetype>image/jpeg</mimetype>\n"
           + "  <url>serverUrl/workflow/samples/image.jpg</url>\n"
@@ -164,6 +149,7 @@ public class ComposerRestService extends AbstractJobProducerEndpoint {
   /** The smil service */
   protected SmilService smilService = null;
 
+  @Reference(name = "smil-service")
   public void setSmilService(SmilService smilService) {
     this.smilService = smilService;
   }
@@ -174,6 +160,7 @@ public class ComposerRestService extends AbstractJobProducerEndpoint {
    * @param serviceRegistry
    *          the service registry
    */
+  @Reference(name = "serviceRegistry")
   protected void setServiceRegistry(ServiceRegistry serviceRegistry) {
     this.serviceRegistry = serviceRegistry;
   }
@@ -184,6 +171,7 @@ public class ComposerRestService extends AbstractJobProducerEndpoint {
    * @param composerService
    *          the composer service
    */
+  @Reference(name = "composerService")
   public void setComposerService(ComposerService composerService) {
     this.composerService = composerService;
   }

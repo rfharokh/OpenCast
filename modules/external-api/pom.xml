@@ -7,7 +7,7 @@
   <parent>
     <groupId>org.opencastproject</groupId>
     <artifactId>base</artifactId>
-    <version>7-SNAPSHOT</version>
+    <version>9-SNAPSHOT</version>
     <relativePath>../../pom.xml</relativePath>
   </parent>
   <properties>
@@ -65,6 +65,18 @@
     <dependency>
       <groupId>org.opencastproject</groupId>
       <artifactId>opencast-scheduler-api</artifactId>
+      <version>${project.version}</version>
+      <scope>provided</scope>
+    </dependency>
+    <dependency>
+      <groupId>org.opencastproject</groupId>
+      <artifactId>opencast-statistics-service-api</artifactId>
+      <version>${project.version}</version>
+      <scope>provided</scope>
+    </dependency>
+    <dependency>
+      <groupId>org.opencastproject</groupId>
+      <artifactId>opencast-statistics-export-service-api</artifactId>
       <version>${project.version}</version>
       <scope>provided</scope>
     </dependency>
@@ -129,8 +141,8 @@
       <artifactId>json-simple</artifactId>
     </dependency>
     <dependency>
-      <groupId>javax.ws.rs</groupId>
-      <artifactId>jsr311-api</artifactId>
+      <groupId>jakarta.ws.rs</groupId>
+      <artifactId>jakarta.ws.rs-api</artifactId>
     </dependency>
     <dependency>
       <groupId>org.slf4j</groupId>
@@ -141,8 +153,8 @@
       <artifactId>javax.servlet-api</artifactId>
     </dependency>
     <dependency>
-      <groupId>javax.xml.bind</groupId>
-      <artifactId>jaxb-api</artifactId>
+      <groupId>jakarta.xml.bind</groupId>
+      <artifactId>jakarta.xml.bind-api</artifactId>
     </dependency>
     <dependency>
       <groupId>com.entwinemedia.common</groupId>
@@ -216,7 +228,8 @@
             </Import-Package>
             <Private-Package>
               org.opencastproject.external.exception,
-              org.opencastproject.external.util
+              org.opencastproject.external.util,
+              org.opencastproject.external.util.statistics
             </Private-Package>
             <Export-Package>
               org.opencastproject.external.api,
@@ -229,10 +242,10 @@
               OSGI-INF/external-capture-agents-endpoint.xml,
               OSGI-INF/external-events-endpoint.xml,
               OSGI-INF/external-group-loader.xml,
-              OSGI-INF/external-role-provider.xml,
               OSGI-INF/external-groups-endpoint.xml,
               OSGI-INF/external-security-endpoint.xml,
               OSGI-INF/external-series-endpoint.xml,
+              OSGI-INF/external-statistics-endpoint.xml,
               OSGI-INF/external-workflow-definitions-endpoint.xml,
               OSGI-INF/external-workflows-endpoint.xml
             </Service-Component>

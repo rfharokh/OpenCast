@@ -43,7 +43,14 @@ import org.opencastproject.workspace.api.Workspace;
 
 import com.entwinemedia.fn.data.Opt;
 
+import org.apache.commons.lang3.BooleanUtils;
 import org.osgi.service.component.ComponentContext;
+import org.osgi.service.component.annotations.Activate;
+import org.osgi.service.component.annotations.Component;
+import org.osgi.service.component.annotations.Deactivate;
+import org.osgi.service.component.annotations.Reference;
+import org.osgi.service.component.annotations.ReferenceCardinality;
+import org.osgi.service.component.annotations.ReferencePolicy;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -52,6 +59,7 @@ import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.LinkedList;
 import java.util.List;
+import java.util.Objects;
 import java.util.Set;
 
 import javax.persistence.EntityManagerFactory;
@@ -62,6 +70,13 @@ import javax.persistence.EntityManagerFactory;
  * Composes the core asset manager with the {@link AssetManagerWithMessaging} and {@link AssetManagerWithSecurity}
  * implementations.
  */
+@Component(
+  property = {
+    "service.description=Opencast Asset Manager"
+  },
+  immediate = true,
+  service = { AssetManager.class, TieredStorageAssetManager.class }
+)
 public class OsgiAssetManager implements AssetManager, TieredStorageAssetManager {
   /** Log facility */
   private static final Logger logger = LoggerFactory.getLogger(OsgiAssetManager.class);
@@ -83,6 +98,7 @@ public class OsgiAssetManager implements AssetManager, TieredStorageAssetManager
   private TieredStorageAssetManager delegate;
 
   /** OSGi callback. */
+  @Activate
   public synchronized void activate(ComponentContext cc) {
     logger.info("Activating AssetManager");
     final Database db = new Database(emf);
@@ -151,7 +167,10 @@ public class OsgiAssetManager implements AssetManager, TieredStorageAssetManager
             workspace,
             systemUserName);
     // compose with security
-    delegate = new AssetManagerWithSecurity(withMessaging, authSvc, secSvc);
+    boolean includeAPIRoles = BooleanUtils.toBoolean(Objects.toString(cc.getProperties().get("includeAPIRoles"), null));
+    boolean includeCARoles = BooleanUtils.toBoolean(Objects.toString(cc.getProperties().get("includeCARoles"), null));
+    boolean includeUIRoles = BooleanUtils.toBoolean(Objects.toString(cc.getProperties().get("includeUIRoles"), null));
+    delegate = new AssetManagerWithSecurity(withMessaging, authSvc, secSvc, includeAPIRoles, includeCARoles, includeUIRoles);
     for (RemoteAssetStore ras : remotes) {
       delegate.addRemoteAssetStore(ras);
     }
@@ -166,6 +185,7 @@ public class OsgiAssetManager implements AssetManager, TieredStorageAssetManager
   }
 
   /** OSGi callback. Close the database. */
+  @Deactivate
   public void deactivate(ComponentContext cc) throws Exception {
     toClose.close();
   }
@@ -190,6 +210,11 @@ public class OsgiAssetManager implements AssetManager, TieredStorageAssetManager
   }
 
   @Override
+  public Opt<MediaPackage> getMediaPackage(String mediaPackageId) {
+    return delegate.getMediaPackage(mediaPackageId);
+  }
+
+  @Override
   public void setAvailability(Version version, String mpId, Availability availability) {
     delegate.setAvailability(version, mpId, availability);
   }
@@ -200,18 +225,28 @@ public class OsgiAssetManager implements AssetManager, TieredStorageAssetManager
   }
 
   @Override
-  public void deleteProperties(final String mediaPackageId) {
-    delegate.deleteProperties(mediaPackageId);
+  public int deleteProperties(final String mediaPackageId) {
+    return delegate.deleteProperties(mediaPackageId);
   }
 
   @Override
-  public void deleteProperties(final String mediaPackageId, final String namespace) {
-    delegate.deleteProperties(mediaPackageId, namespace);
+  public int deleteProperties(final String mediaPackageId, final String namespace) {
+    return delegate.deleteProperties(mediaPackageId, namespace);
   }
 
   @Override
   public boolean snapshotExists(final String mediaPackageId) {
     return delegate.snapshotExists(mediaPackageId);
+  }
+
+  @Override
+  public boolean snapshotExists(final String mediaPackageId, final String organization) {
+    return delegate.snapshotExists(mediaPackageId, organization);
+  }
+
+  @Override
+  public List<Property> selectProperties(final String mediaPackageId, final String namespace) {
+    return delegate.selectProperties(mediaPackageId, namespace);
   }
 
   @Override
@@ -228,30 +263,37 @@ public class OsgiAssetManager implements AssetManager, TieredStorageAssetManager
   // OSGi depedency injection
   //
 
+  @Reference(name = "entityManagerFactory", target = "(osgi.unit.name=org.opencastproject.assetmanager.impl)")
   public void setEntityManagerFactory(EntityManagerFactory emf) {
     this.emf = emf;
   }
 
+  @Reference(name = "securityService")
   public void setSecurityService(SecurityService securityService) {
     this.secSvc = securityService;
   }
 
+  @Reference(name = "authSvc")
   public void setAuthSvc(AuthorizationService authSvc) {
     this.authSvc = authSvc;
   }
 
+  @Reference(name = "orgDir")
   public void setOrgDir(OrganizationDirectoryService orgDir) {
     this.orgDir = orgDir;
   }
 
+  @Reference(name = "workspace")
   public void setWorkspace(Workspace workspace) {
     this.workspace = workspace;
   }
 
+  @Reference(name = "assetStore")
   public void setAssetStore(AssetStore assetStore) {
     this.assetStore = assetStore;
   }
 
+  @Reference(name = "remoteAssetStores", cardinality = ReferenceCardinality.MULTIPLE, policy = ReferencePolicy.DYNAMIC, unbind = "removeRemoteAssetStore")
   public synchronized void addRemoteAssetStore(RemoteAssetStore assetStore) {
     if (null == delegate) {
       remotes.add(assetStore);
@@ -268,14 +310,17 @@ public class OsgiAssetManager implements AssetManager, TieredStorageAssetManager
     }
   }
 
+  @Reference(name = "httpAssetProvider")
   public void setHttpAssetProvider(HttpAssetProvider httpAssetProvider) {
     this.httpAssetProvider = httpAssetProvider;
   }
 
+  @Reference(name = "messageSender")
   public void setMessageSender(MessageSender messageSender) {
     this.messageSender = messageSender;
   }
 
+  @Reference(name = "messageReceiver")
   public void setMessageReceiver(MessageReceiver messageReceiver) {
     this.messageReceiver = messageReceiver;
   }

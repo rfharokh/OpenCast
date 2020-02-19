@@ -26,14 +26,12 @@ import static org.opencastproject.assetmanager.api.fn.Enrichments.enrich;
 import org.opencastproject.assetmanager.api.AssetManager;
 import org.opencastproject.assetmanager.api.Snapshot;
 import org.opencastproject.assetmanager.api.query.AQueryBuilder;
-import org.opencastproject.assetmanager.api.query.ASelectQuery;
 import org.opencastproject.mediapackage.MediaPackage;
 import org.opencastproject.workflow.api.ConfiguredWorkflow;
 import org.opencastproject.workflow.api.WorkflowDatabaseException;
 import org.opencastproject.workflow.api.WorkflowInstance;
 import org.opencastproject.workflow.api.WorkflowParsingException;
 import org.opencastproject.workflow.api.WorkflowService;
-import org.opencastproject.workspace.api.Workspace;
 
 import com.entwinemedia.fn.Fn;
 import com.entwinemedia.fn.Stream;
@@ -50,23 +48,12 @@ public class Workflows {
   /** Log facility */
   private static final Logger logger = LoggerFactory.getLogger(Workflows.class);
 
-  private static final String ASSETS_COLLECTION_ID = "assets";
-
   private final AssetManager am;
-  private final Workspace ws;
   private final WorkflowService wfs;
 
-  public Workflows(AssetManager am, Workspace ws, WorkflowService wfs) {
+  public Workflows(AssetManager am, WorkflowService wfs) {
     this.am = am;
-    this.ws = ws;
     this.wfs = wfs;
-  }
-
-  /**
-   * Apply a workflow to each episode contained in the result set of a select query.
-   */
-  public Stream<WorkflowInstance> applyWorkflow(ASelectQuery q, ConfiguredWorkflow wf) {
-    return enrich(q.run()).getSnapshots().map(getMediapackage).bind(applyWorkflow(wf));
   }
 
   /**

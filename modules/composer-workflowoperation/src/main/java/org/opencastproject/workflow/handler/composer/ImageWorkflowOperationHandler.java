@@ -34,7 +34,6 @@ import static com.entwinemedia.fn.parser.Parsers.token;
 import static com.entwinemedia.fn.parser.Parsers.yield;
 import static java.lang.String.format;
 import static org.opencastproject.util.EqualsUtil.eq;
-import static org.opencastproject.util.data.Tuple.tuple;
 
 import org.opencastproject.composer.api.ComposerService;
 import org.opencastproject.composer.api.EncodingProfile;
@@ -50,6 +49,8 @@ import org.opencastproject.mediapackage.MediaPackageException;
 import org.opencastproject.mediapackage.MediaPackageSupport;
 import org.opencastproject.mediapackage.MediaPackageSupport.Filters;
 import org.opencastproject.mediapackage.Track;
+import org.opencastproject.mediapackage.TrackSupport;
+import org.opencastproject.mediapackage.VideoStream;
 import org.opencastproject.mediapackage.selector.AbstractMediaPackageElementSelector;
 import org.opencastproject.mediapackage.selector.TrackSelector;
 import org.opencastproject.util.JobUtil;
@@ -83,9 +84,9 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.net.URI;
+import java.util.Arrays;
 import java.util.IllegalFormatException;
 import java.util.List;
-import java.util.SortedMap;
 import java.util.UUID;
 
 /**
@@ -108,22 +109,7 @@ public class ImageWorkflowOperationHandler extends AbstractWorkflowOperationHand
   public static final String OPT_END_MARGIN = "end-margin";
 
   private static final long END_MARGIN_DEFAULT = 100;
-
-  /** The configuration options for this handler */
-  @SuppressWarnings("unchecked")
-  private static final SortedMap<String, String> CONFIG_OPTIONS = Collections.smap(
-          tuple(OPT_SOURCE_FLAVOR, "The \"flavor\" of the track to use as a video source input"),
-          tuple(OPT_SOURCE_FLAVORS, "The \"flavors\" of the track to use as a video source input"),
-          tuple(OPT_SOURCE_TAGS,
-                "The required tags that must exist on the track for the track to be used as a video source"),
-          tuple(OPT_PROFILES, "The encoding profile to use"),
-          tuple(OPT_POSITIONS, "The number of seconds into the video file to extract the image"),
-          tuple(OPT_TARGET_FLAVOR, "The flavor to apply to the extracted image"),
-          tuple(OPT_TARGET_TAGS, "The tags to apply to the extracted image"),
-          tuple(OPT_TARGET_BASE_NAME_FORMAT_SECOND, "TODO"), // todo description
-          tuple(OPT_TARGET_BASE_NAME_FORMAT_PERCENT, "The target base name pattern for seconds 'thumbnail' or 'extracted'."), //todo description
-          tuple(OPT_END_MARGIN, "A margin in milliseconds at the end of the video. Each position is "
-                  + "limited to not exceed this bound. Defaults to " + END_MARGIN_DEFAULT + "ms."));
+  public static final double SINGLE_FRAME_POS = 0.0;
 
   /** The composer service */
   private ComposerService composerService = null;
@@ -150,11 +136,6 @@ public class ImageWorkflowOperationHandler extends AbstractWorkflowOperationHand
    */
   public void setWorkspace(Workspace workspace) {
     this.workspace = workspace;
-  }
-
-  @Override
-  public SortedMap<String, String> getConfigurationOptions() {
-    return CONFIG_OPTIONS;
   }
 
   @Override
@@ -194,7 +175,7 @@ public class ImageWorkflowOperationHandler extends AbstractWorkflowOperationHand
           if (p.size() != cfg.positions.size()) {
             logger.warn("Could not apply all configured positions to track " + t);
           } else {
-            logger.info(format("Extracting images from %s at position %s", t, $(p).mkString(", ")));
+            logger.info("Extracting images from {} at position {}", t, $(p).mkString(", "));
           }
           // create one extraction per encoding profile
           return $(cfg.profiles).map(new Fn<EncodingProfile, Extraction>() {
@@ -350,8 +331,15 @@ public class ImageWorkflowOperationHandler extends AbstractWorkflowOperationHand
   /** Limit the list of media positions to those that fit into the length of the track. */
   static List<MediaPosition> limit(Track track, List<MediaPosition> positions) {
     final long duration = track.getDuration();
+    // if the video has just one frame (e.g.: MP3-Podcasts) it makes no sense to go to a certain position
+    // as the video has only one image at position 0
+    final boolean singleFrame = track.getStreams() == null ? false
+            : Arrays.stream(TrackSupport.byType(track.getStreams(), VideoStream.class)).mapToLong(
+                    fc -> fc.getFrameCount()).allMatch(fc -> fc == 1);
+
     return $(positions).filter(new Fn<MediaPosition, Boolean>() {
       @Override public Boolean apply(MediaPosition p) {
+        if (singleFrame) { p.setPosition(SINGLE_FRAME_POS); }
         return !(
                 (eq(p.type, PositionType.Seconds) && (p.position >= duration || p.position < 0.0))
                         ||
@@ -604,12 +592,16 @@ public class ImageWorkflowOperationHandler extends AbstractWorkflowOperationHand
    * A position in time in a media file.
    */
   static final class MediaPosition {
-    private final double position;
+    private double position;
     private final PositionType type;
 
     MediaPosition(PositionType type, double position) {
       this.position = position;
       this.type = type;
+    }
+
+    public void setPosition(double position) {
+      this.position = position;
     }
 
     @Override public int hashCode() {

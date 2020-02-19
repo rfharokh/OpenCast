@@ -24,6 +24,7 @@ General Configuration
     - [LDAP Authentication and Authorization (without CAS)](security.ldap.md)
     - [Moodle User Provider](security.user.moodle.md)
     - [Sakai User Provider](security.user.sakai.md)
+    - [Brightspace User Provider](security.user.brightspace.md)
     - [Authentication and Authorization Infrastructure (AAI)](security.aai.md)
     - [Access Control Lists](acl.md)
     - [Stream Security](stream-security.md)
@@ -31,8 +32,10 @@ General Configuration
     - [Workflow Operation Handler](../workflowoperationhandlers/index.md)
 - [External API Configuration](external-api.md)
 - [OAI-PMH Configuration](oaipmh.md)
+- [External Monitoring](monitoring.md)
 - Admin UI Configuration
     - [Event Filters](admin-ui/event-filters.md)
     - [Manual Asset Upload](admin-ui/asset-upload.md)
     - [Languages](admin-ui/languages.md)
+    - [Statistics](admin-ui/statistics.md)
     - [Thumbnails](admin-ui/thumbnails.md)

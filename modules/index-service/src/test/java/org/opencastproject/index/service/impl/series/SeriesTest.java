@@ -28,13 +28,11 @@ import org.opencastproject.index.service.impl.index.series.Series;
 import org.opencastproject.util.DateTimeSupport;
 
 import org.apache.commons.io.IOUtils;
-import org.codehaus.jettison.json.JSONException;
 import org.json.simple.JSONArray;
 import org.json.simple.JSONObject;
 import org.json.simple.parser.JSONParser;
 import org.json.simple.parser.ParseException;
 import org.junit.Before;
-import org.junit.Ignore;
 import org.junit.Test;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -43,9 +41,6 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Date;
 import java.util.List;
-
-import javax.xml.bind.JAXBException;
-import javax.xml.stream.XMLStreamException;
 
 public class SeriesTest {
   private static final Logger logger = LoggerFactory.getLogger(SeriesTest.class);
@@ -58,7 +53,6 @@ public class SeriesTest {
   private static final String IDENTIFIER_JSON_KEY = "identifier";
   private static final String LANGUAGE_JSON_KEY = "language";
   private static final String LICENSE_JSON_KEY = "license";
-  private static final String OPT_OUT_KEY = "opt_out";
   private static final String ORGANIZATION_JSON_KEY = "organization";
   private static final String ORGANIZERS_JSON_KEY = "organizers";
   private static final String ORGANIZER_JSON_KEY = "organizer";
@@ -75,7 +69,6 @@ public class SeriesTest {
   private String creator = "Creator Name";
   private String license = "Creative Commons 2.0";
   private String accessPolicy = "ROLE_ADMIN";
-  private boolean optOut = true;
   private Date createdDateTime;
   private List<String> organizers = new ArrayList<String>();
   private String organizer1 = "organizer-one";
@@ -106,43 +99,6 @@ public class SeriesTest {
     seriesXml = IOUtils.toString(getClass().getResource("/adminui_series_metadata.xml"));
   }
 
-  @Ignore
-  @Test
-  public void testValueOf() throws ParseException, IOException, JSONException, XMLStreamException, JAXBException {
-    Series series = Series.valueOf(IOUtils.toInputStream(seriesXml), Series.createUnmarshaller());
-    assertEquals(id, series.getIdentifier());
-    assertEquals(title, series.getTitle());
-    assertEquals(description, series.getDescription());
-    assertEquals(subject, series.getSubject());
-    assertEquals(organization, series.getOrganization());
-    assertEquals(language, series.getLanguage());
-    assertEquals(license, series.getLicense());
-    assertEquals(accessPolicy, series.getAccessPolicy());
-    assertEquals(optOut, series.isOptedOut());
-    assertEquals(DateTimeSupport.toUTC(createdDateTime.getTime()),
-            DateTimeSupport.toUTC(series.getCreatedDateTime().getTime()));
-    assertEquals(organizer1, series.getOrganizers().get(0));
-    assertEquals(organizer2, series.getOrganizers().get(1));
-    assertEquals(organizer3, series.getOrganizers().get(2));
-    assertEquals(contributor1, series.getContributors().get(0));
-    assertEquals(contributor2, series.getContributors().get(1));
-    assertEquals(contributor3, series.getContributors().get(2));
-  }
-
-  @Ignore
-  @Test
-  public void testValueOfJson() throws ParseException, IOException, JSONException, XMLStreamException, JAXBException {
-    Series series = Series.valueOfJson(IOUtils.toInputStream(seriesJson));
-    assertEquals(id, series.getIdentifier());
-    assertEquals(title, series.getTitle());
-    assertEquals(organizer1, series.getOrganizers().get(0));
-    assertEquals(organizer2, series.getOrganizers().get(1));
-    assertEquals(organizer3, series.getOrganizers().get(2));
-    assertEquals(contributor1, series.getContributors().get(0));
-    assertEquals(contributor2, series.getContributors().get(1));
-    assertEquals(contributor3, series.getContributors().get(2));
-  }
-
   @Test
   public void testToJson() throws ParseException {
     // Initialize series
@@ -157,7 +113,6 @@ public class SeriesTest {
     series.setCreatedDateTime(createdDateTime);
     series.setOrganizers(organizers);
     series.setContributors(contributors);
-    series.setOptOut(optOut);
     logger.info(series.toJSON());
 
     // Check that generated JSON has proper values
@@ -175,7 +130,6 @@ public class SeriesTest {
     assertEquals(creator, seriesJsonObject.get(CREATOR_JSON_KEY));
     assertEquals(license, seriesJsonObject.get(LICENSE_JSON_KEY));
     assertEquals(accessPolicy, seriesJsonObject.get(ACCESS_POLICY_KEY));
-    assertEquals(optOut, seriesJsonObject.get(OPT_OUT_KEY));
     assertEquals(DateTimeSupport.toUTC(createdDateTime.getTime()), seriesJsonObject.get(CREATED_DATE_TIME));
 
     JSONObject organizersJsonObject = (JSONObject) seriesJsonObject.get(ORGANIZERS_JSON_KEY);

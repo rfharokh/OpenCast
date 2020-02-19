@@ -26,17 +26,14 @@ import static org.junit.Assert.assertThat;
 
 import org.opencastproject.index.service.impl.index.event.Event;
 
-import com.google.common.io.Files;
-
 import org.easymock.EasyMock;
 import org.json.simple.JSONArray;
 import org.json.simple.JSONObject;
 import org.json.simple.parser.JSONParser;
 import org.junit.Test;
 
-import java.io.File;
-import java.io.Reader;
-import java.nio.charset.Charset;
+import java.io.InputStream;
+import java.io.InputStreamReader;
 import java.util.List;
 
 import uk.co.datumedge.hamcrest.json.SameJSONAs;
@@ -119,10 +116,9 @@ public class BulkUpdateUtilTest {
   }
 
   private static Object loadJson(String filename) {
-    final Charset utf8 = Charset.forName("utf-8");
     final String fullName = "/bulkupdate/" +  filename;
-    try (Reader reader = Files.newReader(new File(BulkUpdateUtil.class.getResource(fullName).toURI()), utf8)) {
-      return new JSONParser().parse(reader);
+    try (InputStream in = BulkUpdateUtil.class.getResourceAsStream(fullName)) {
+      return new JSONParser().parse(new InputStreamReader(in));
     } catch (Exception e) {
       throw new RuntimeException(e);
     }

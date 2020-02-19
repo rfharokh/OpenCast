@@ -32,8 +32,8 @@ import org.opencastproject.security.api.RoleProvider;
 import org.opencastproject.security.api.SecurityService;
 import org.opencastproject.security.api.UserProvider;
 
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
+import org.osgi.service.component.annotations.Component;
+import org.osgi.service.component.annotations.Reference;
 
 import java.util.ArrayList;
 import java.util.Collections;
@@ -45,10 +45,14 @@ import java.util.regex.Pattern;
 /**
  * The organization role provider returning the admin and anonymous role from the current organization.
  */
+@Component(
+  property = {
+    "service.description=Provides the organizations role"
+  },
+  immediate = true,
+  service = { RoleProvider.class }
+)
 public class OrganizationRoleProvider implements RoleProvider {
-
-  /** The logger */
-  private static final Logger logger = LoggerFactory.getLogger(OrganizationRoleProvider.class);
 
   /** The security service */
   protected SecurityService securityService = null;
@@ -57,15 +61,12 @@ public class OrganizationRoleProvider implements RoleProvider {
    * @param securityService
    *          the securityService to set
    */
+  @Reference(name = "security-service")
   public void setSecurityService(SecurityService securityService) {
     this.securityService = securityService;
   }
 
-  /**
-   * @see org.opencastproject.security.api.RoleProvider#getRoles()
-   */
-  @Override
-  public Iterator<Role> getRoles() {
+  private Iterator<Role> getRoles() {
     Organization organization = securityService.getOrganization();
     List<Role> roles = new ArrayList<Role>();
     // The GLOBAL_ADMIN_ROLE is provided by the InMemoryUserAndRoleProvider

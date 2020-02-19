@@ -1,82 +1,77 @@
-Upgrading Opencast from 6.x to 7.x
+Upgrading Opencast from 8.x to 9.x
 ==================================
 
-This guide describes how to upgrade Opencast 6.x to 7.x. In case you need information about how to upgrade older
-versions of Opencast, please refer to the [old release notes](https://docs.opencast.org).
-
-How to Upgrade
---------------
+This guide describes how to upgrade Opencast 8.x to 9.x. In case you need information about how to upgrade older
+versions of Opencast, please refer to [older release notes](https://docs.opencast.org).
 
 1. Stop your current Opencast instance
-2. Replace Opencast 6.x with 7.x
+2. Replace Opencast with the new version
 3. Back-up Opencast files and database (optional)
-4. [Upgrade the database](#database-migration)
-5. [Upgrade the ActiveMQ configuration](#activemq-migration)
-6. Review the [configuration changes](#configuration-changes) and adjust your configuration accordingly
-7. Migrate the scheduled events
+4. Upgrade the database
+5. [Install and configure a standlone Elasticsearch node](#install-and-confifure-a-standalone-elasticsearch-node)
+6. [Review the configuration changes and adjust your configuration accordingly](#configuration-changes)
+7. Remove search index data folder
+8. Start Opencast
+9. [Rebuild the Elasticsearch indexes](#rebuild-the-elasticsearch-indexes)
+10. [Check passwords](#check-passwords)
 
-Database Migration
-------------------
+Install and configure a standalone Elasticsearch node
+-----------------------------------------------------
 
-As part of performance optimizations, some tables were modified. This requires a database schema update. Also, one table
-is no longer needed and can be dropped. As with all database migrations, we strongly recommend to create a database
-backup before attempting the upgrade.
+In the past, Opencast came with its own integrated Elasticsearch node. However, recent versions of Elasticsearch no longer
+support to be embedded in applications. Since the Elasticsearch client was updated to version 7, Opencast now requires an
+external Elasticsearch node of the same version to be present. This means, that all Opencast adopters now have to run
+Elasticsearch.
 
-You can find the database upgrade script in `docs/upgrade/6_to_7/`. This script is suitable for both, MariaDB and
-MySQL.
+Please check [the documentation](modules/searchindex/elasticsearch.md) for information about how to setup an external node.
+
+If you already used an external Elasticsearch node in the past, please update your node to version 7. Since the index
+schema has changed, you will need to drop you indices and [rebuild them](#rebuild-the-elasticsearch-indexes).
+
+Rebuild the Elasticsearch Indexes
+----------------------------------
+
+In order to populate the external Elasticsearch index, an index rebuild is necessary.
+
+### Admin Interface
+
+Stop Opencast, delete the index directory at `data/index`, restart Opencast and make an HTTP POST request to
+`/admin-ng/index/recreateIndex`.
+
+Example (using cURL):
+
+    curl -i --digest -u <digest_user>:<digest_password> -H "X-Requested-Auth: Digest" -s -X POST \
+      https://example.opencast.org/admin-ng/index/recreateIndex
+
+You can also just open the REST documentation, which can be found under the “Help” section in the admin interface (the
+“?” symbol at the top right corner). Then go to the “Admin UI - Index Endpoint” section and use the testing form on
+`/recreateIndex` to issue a POST request.
+
+In both cases you should get a 200 HTTP status.
+
+### External API
+
+If you are using the External API, then also trigger a rebuilt of its index by sending an HTTP POST request to
+`/api/recreateIndex`.
+
+Example (using cURL):
+
+    curl -i --digest -u <digest_user>:<digest_password> -H "X-Requested-Auth: Digest" -s -X POST \
+      https://example.opencast.org/api/recreateIndex
+
+You can also just open the REST documentation, which can be found under the “Help” section in the admin interface (the
+“?” symbol at the top right corner). Then go to the “External API - Base Endpoint” section and use the testing form on
+`/recreateIndex`.
+
+In both cases you should again get a 200 HTTP status.
 
 
-ActiveMQ Migration
-------------------
+Check Passwords
+---------------
 
-*So far, this is not required*
+Since Opencast 8.1 [passwords are stored in a much safer way than before
+](https://github.com/opencast/opencast/security/advisories/GHSA-h362-m8f2-5x7c)
+but to benefit from this mechanism, users have to reset their password.
 
-
-Removal of Deprecated Access Control Ruleset
---------------------------------------------
-
-Opencast 7 finally removes the long-since deprecated `security/xacml` flavor for access control lists. This had not been
-used since before Opencast 1.2 (we could not track down its exact deprecation date due to its age). Additionally, all
-rule-sets which had been modified since had also been automnatically been updated to `security/xacml+series` which
-serves as replacement for the old flavor.
-
-In case Opencast still encounters such a rule set, it will now be ignored and access will be denied by default. A simple
-update of the permissions would fix this if that is required.
-
-Due to the extreme unlikeliness of anyone encountering this problem, there is no automatic migration. In case you run a
-system migrated from a pre-1.2 Matterhorn, you can make sure that there are no old rule-sets left using the following
-SQL queries:
-
-```sql
--- Check OAI-PMH publications:
-select * from oc_oaipmh_elements where flavor = 'security/xacml';
--- Check engage publications:
-select * from oc_search where mediapackage_xml like '%"security/xacml"%';
--- Check asset manager:
-select * from oc_assets_snapshot where mediapackage_xml like '%"security/xacml"%';
-```
-
-
-Configuration Changes
----------------------
-
-- `etc/org.opencastproject.scheduler.impl.SchedulerServiceImpl.cfg` no longer needs the `transaction_cleanup_offset`
-  option.
-- `etc/org.opencastproject.scheduler.impl.SchedulerServiceImpl.cfg` has a new option `maintenance` which temporarily
-  disables the scheduler if set to `true`.
-
-Scheduler Migration
--------------------
-
-The way the Scheduler stores its data was changed in Opencast 7 to improve performance when checking for conflicts.
-
-The necessary database schema changes are part of the upgrade script in `docs/upgrade/6_to_7/`.
-
-To actually migrate the data, set the `maintenance` configuration option of
-`etc/org.opencastproject.scheduler.impl.SchedulerServiceImpl.cfg` to `true` and start opencast. The migration will start
-automatically. Wait until the migration is complete. Once complete, the opencast log will contain a line saying
-`Finished migrating scheduled events`. Check if there were any errors during the migration. If not, stop opencast and
-change `maintenance` back to `false` to put the scheduler back into its normal mode of operation.
-
-You should avoid running Opencast 7 without migrating the scheduled events first. Otherwise, your capture agents may
-fetch an empty calendar.
+You can use the endpoint `/user-utils/users/md5.json` to find out which users are still using MD5-hashed passwords and
+suggest to them that they update their passwords.

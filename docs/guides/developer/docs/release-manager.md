@@ -70,11 +70,9 @@ Example on how to create the Opencast 7 release branch:
 4. That is it for the release branch. Now update the versions in `develop` in preparation for the next release:
 
         git checkout develop
-        for i in `find . -name pom.xml`; do \
-          sed -i 's/<version>7-SNAPSHOT</<version>8-SNAPSHOT</' $i; done
+        mvn versions:set -DnewVersion=8-SNAPSHOT versions:commit
 
-5. Have a look at the changes. Make sure no library version we use has the version `6-SNAPSHOT` and was accidentally
-   changed. Also make sure that nothing else was modified:
+5. Have a look at the changes. Make sure that nothing else was modified:
 
         git diff
         git status | grep modified: | grep -v pom.xml   # this should have no output
@@ -284,7 +282,8 @@ The following steps outline the necessary steps for cutting the final release:
         git merge <remote>/r/5.x
 
 2. Add the release notes, and update the changelog. The `create-changelog` [helper script
-   ](https://github.com/opencast/helper-scripts/tree/master/create-changelog) is a convenient tool for this.
+   ](https://github.com/opencast/helper-scripts/tree/master/release-management/create-changelog) is a convenient tool
+   for this.
 
         cd docs/guides/admin/docs/
         vim releasenotes.md
@@ -296,14 +295,11 @@ The following steps outline the necessary steps for cutting the final release:
 
         git checkout -b tmp-6.0
 
-4. Make the version changes for the release. You can use `sed` to make things easier but please make sure that the
-   changes are correct:
+4. Make the version changes for the release:
 
-        for i in `find . -name pom.xml`; do \
-          sed -i 's/<version>6-SNAPSHOT</<version>6.0</' $i; done
+        mvn versions:set -DnewVersion=6.0 versions:commit
 
-5. Have a look at the changes. Make sure no library version we use had the version `6-SNAPSHOT` and was accidentally
-   changed. Also make sure that nothing else was modified:
+5. Have a look at the changes. Make sure that nothing else was modified:
 
         git diff
         git status | grep modified: | grep -v pom.xml   # this should yield no output
@@ -318,7 +314,10 @@ The following steps outline the necessary steps for cutting the final release:
 
         git push <remote> 6.0:6.0
 
-8. Create a new release on GitHub using the [graphical user interface](https://github.com/opencast/opencast/releases)
+8. Push the built artifacts to Maven. Bug the QA Coordinator to do this so that he remembers to set this up from the CI
+    servers. If you want to do this yourself please read the [infra documentation](infrastructure/maven-repository.md#pushing-to-maven-central).
+
+9. Create a new release on GitHub using the [graphical user interface](https://github.com/opencast/opencast/releases)
     to upload the distribution tarballs.
 
 Finally, send a release notice to Opencast's announcement list. Note that posting to this list is restricted to those

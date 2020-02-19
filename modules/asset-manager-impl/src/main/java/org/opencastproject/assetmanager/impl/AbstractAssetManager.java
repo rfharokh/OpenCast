@@ -77,6 +77,7 @@ import java.net.URI;
 import java.net.URISyntaxException;
 import java.security.NoSuchAlgorithmException;
 import java.util.Date;
+import java.util.List;
 
 /**
  * Core implementation of the asset manager interface.
@@ -107,7 +108,20 @@ public abstract class AbstractAssetManager implements AssetManager {
 
   /* ------------------------------------------------------------------------------------------------------------------ */
 
-  @Override public Snapshot takeSnapshot(final String owner, final MediaPackage mp) {
+  @Override
+  public Opt<MediaPackage> getMediaPackage(String mediaPackageId) {
+    final AQueryBuilder q = createQuery();
+    final AResult r = q.select(q.snapshot()).where(q.mediaPackageId(mediaPackageId).and(q.version().isLatest()))
+            .run();
+
+    if (r.getSize() == 0) {
+      return Opt.none();
+    }
+    return Opt.some(r.getRecords().head2().getSnapshot().get().getMediaPackage());
+  }
+
+  @Override
+  public Snapshot takeSnapshot(final String owner, final MediaPackage mp) {
     if (owner == null)
       return takeSnapshot(mp);
 
@@ -148,18 +162,28 @@ public abstract class AbstractAssetManager implements AssetManager {
   }
 
   @Override
-  public void deleteProperties(final String mediaPackageId) {
-    getDb().deleteProperties(mediaPackageId);
+  public int deleteProperties(final String mediaPackageId) {
+    return getDb().deleteProperties(mediaPackageId);
   }
 
   @Override
-  public void deleteProperties(final String mediaPackageId, final String namespace) {
-    getDb().deleteProperties(mediaPackageId, namespace);
+  public int deleteProperties(final String mediaPackageId, final String namespace) {
+    return getDb().deleteProperties(mediaPackageId, namespace);
   }
 
   @Override
   public boolean snapshotExists(final String mediaPackageId) {
     return getDb().snapshotExists(mediaPackageId);
+  }
+
+  @Override
+  public boolean snapshotExists(final String mediaPackageId, final String organization) {
+    return getDb().snapshotExists(mediaPackageId, organization);
+  }
+
+  @Override
+  public List<Property> selectProperties(final String mediaPackageId, final String namespace) {
+    return getDb().selectProperties(mediaPackageId, namespace);
   }
 
   @Override public AQueryBuilder createQuery() {
@@ -260,7 +284,7 @@ public abstract class AbstractAssetManager implements AssetManager {
     final String mpId = pmp.getMediaPackage().getIdentifier().toString();
     final String orgId = getCurrentOrgId();
     for (final MediaPackageElement e : pmp.getElements()) {
-      logger.debug(format("Archiving %s %s %s", e.getFlavor(), e.getMimeType(), e.getURI()));
+      logger.debug("Archiving {} {} {}", e.getFlavor(), e.getMimeType(), e.getURI());
       final StoragePath storagePath = StoragePath.mk(orgId, mpId, version, e.getIdentifier());
       final Opt<StoragePath> existingAssetOpt = findAssetInVersions(e.getChecksum().toString());
       if (existingAssetOpt.isSome()) {

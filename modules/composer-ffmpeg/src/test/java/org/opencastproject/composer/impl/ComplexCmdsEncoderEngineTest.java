@@ -50,7 +50,6 @@ import org.opencastproject.workspace.api.Workspace;
 import org.apache.commons.io.FileUtils;
 import org.apache.commons.io.FilenameUtils;
 import org.apache.commons.io.IOUtils;
-import org.apache.log4j.BasicConfigurator;
 import org.easymock.Capture;
 import org.easymock.EasyMock;
 import org.easymock.IAnswer;
@@ -94,8 +93,6 @@ public class ComplexCmdsEncoderEngineTest {
   /** The composer service to test */
   private ComposerServiceImpl composerService = null;
   private EncoderEngine engine = null;
-  /** The service registry for job dispatching */
-  private ServiceRegistry serviceRegistry = null;
 
   /** File pointer to the testing dir */
   private static File workingDirectory = new File("target");
@@ -133,7 +130,6 @@ public class ComplexCmdsEncoderEngineTest {
   public void setUp() throws Exception {
     // Skip tests if FFmpeg is not installed
     Assume.assumeTrue(ffmpegInstalled);
-    BasicConfigurator.configure();
     engine = new EncoderEngine(FFMPEG_BINARY);
 
     File f = getFile("/video.mp4");
@@ -297,7 +293,7 @@ public class ComplexCmdsEncoderEngineTest {
       }
     };
 
-    IncidentService incidents = EasyMock.createNiceMock(IncidentService.class);
+    EasyMock.createNiceMock(IncidentService.class);
     composerService.setOrganizationDirectoryService(orgDirectory);
     composerService.setSecurityService(securityService);
     composerService.setServiceRegistry(serviceRegistry);

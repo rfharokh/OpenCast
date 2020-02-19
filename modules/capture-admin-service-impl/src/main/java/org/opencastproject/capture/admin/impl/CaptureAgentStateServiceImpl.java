@@ -49,6 +49,10 @@ import org.apache.commons.lang3.StringUtils;
 import org.osgi.service.cm.ConfigurationException;
 import org.osgi.service.cm.ManagedServiceFactory;
 import org.osgi.service.component.ComponentContext;
+import org.osgi.service.component.annotations.Activate;
+import org.osgi.service.component.annotations.Component;
+import org.osgi.service.component.annotations.Deactivate;
+import org.osgi.service.component.annotations.Reference;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -74,6 +78,14 @@ import javax.persistence.RollbackException;
 /**
  * IMPL for the capture-admin service (MH-1336, MH-1394, MH-1457, MH-1475 and MH-1476).
  */
+@Component(
+  property = {
+    "service.description=Capture-Admin Service",
+    "service.pid=org.opencastproject.capture.agent"
+  },
+  immediate = true,
+  service = { CaptureAgentStateService.class , ManagedServiceFactory.class }
+)
 public class CaptureAgentStateServiceImpl implements CaptureAgentStateService, ManagedServiceFactory {
 
   private static final Logger logger = LoggerFactory.getLogger(CaptureAgentStateServiceImpl.class);
@@ -103,6 +115,7 @@ public class CaptureAgentStateServiceImpl implements CaptureAgentStateService, M
   protected Object nullToken = new Object();
 
   /** OSGi DI */
+  @Reference(name = "entityManagerFactory", target = "(osgi.unit.name=org.opencastproject.capture.admin.impl.CaptureAgentStateServiceImpl)")
   void setEntityManagerFactory(EntityManagerFactory emf) {
     this.emf = emf;
   }
@@ -111,6 +124,7 @@ public class CaptureAgentStateServiceImpl implements CaptureAgentStateService, M
    * @param securityService
    *          the securityService to set
    */
+  @Reference(name = "security-service")
   public void setSecurityService(SecurityService securityService) {
     this.securityService = securityService;
   }
@@ -119,6 +133,7 @@ public class CaptureAgentStateServiceImpl implements CaptureAgentStateService, M
     logger.info("CaptureAgentStateServiceImpl starting.");
   }
 
+  @Activate
   public void activate(ComponentContext cc) {
 
     // Set up the agent cache
@@ -139,6 +154,7 @@ public class CaptureAgentStateServiceImpl implements CaptureAgentStateService, M
     logger.info("Capture agent status timeout is {} minutes", timeoutInMinutes);
   }
 
+  @Deactivate
   public void deactivate() {
     agentCache.invalidateAll();
   }
@@ -153,16 +169,6 @@ public class CaptureAgentStateServiceImpl implements CaptureAgentStateService, M
     String org = securityService.getOrganization().getId();
     Agent agent = getAgent(name, org);
     return updateCachedLastHeardFrom(agent, org);
-  }
-
-  /**
-   * {@inheritDoc}
-   *
-   * @see org.opencastproject.capture.admin.api.CaptureAgentStateService#updateAgent(Agent)
-   */
-  @Override
-  public void updateAgent(Agent agent) {
-    updateAgentInDatabase((AgentImpl) agent);
   }
 
   /**
@@ -486,7 +492,7 @@ public class CaptureAgentStateServiceImpl implements CaptureAgentStateService, M
    *          The Agent you wish to modify or add in the database.
    */
   protected void updateAgentInDatabase(AgentImpl agent) {
-    updateAgentInDatabase(agent, true);
+    updateAgentInDatabase(agent, true, 10);
   }
 
   /**
@@ -498,7 +504,7 @@ public class CaptureAgentStateServiceImpl implements CaptureAgentStateService, M
    *          True to update the last heard from timestamp from the agentCache, false to avoid this.
    *          Note that you should nearly always update the cache, this was added to avoid deadlocks when removing agents from the cache. 
    */
-  private void updateAgentInDatabase(AgentImpl agent, boolean updateFromCache) {
+  private void updateAgentInDatabase(AgentImpl agent, boolean updateFromCache, int retries) {
     EntityManager em = null;
     EntityTransaction tx = null;
     try {
@@ -534,8 +540,12 @@ public class CaptureAgentStateServiceImpl implements CaptureAgentStateService, M
         updateAgentInCache(agent.getName(), agent.getState(), agent.getOrganization(), agent.getConfiguration());
       }
     } catch (RollbackException e) {
-      logger.warn("Unable to commit to DB in updateAgent.");
-      throw e;
+      retries--;
+      if (retries < 0) {
+        throw new RollbackException("Maximum number of retries exceeded", e);
+      } else {
+        updateAgentInDatabase(agent, updateFromCache, retries);
+      }
     } finally {
       if (em != null)
         em.close();
@@ -595,7 +605,7 @@ public class CaptureAgentStateServiceImpl implements CaptureAgentStateService, M
             AgentImpl agent = getAgent(agentName, org);
             if (!ignoredStates.contains(agent.getState())) {
               agent.setState(AgentState.OFFLINE);
-              updateAgentInDatabase(agent, false);
+              updateAgentInDatabase(agent, false, 0);
             }
           } catch (NotFoundException e) {
             //Ignore this

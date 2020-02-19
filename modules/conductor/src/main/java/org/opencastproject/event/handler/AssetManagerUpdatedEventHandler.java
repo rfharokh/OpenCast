@@ -161,7 +161,7 @@ public class AssetManagerUpdatedEventHandler {
         final Organization organization = organizationDirectoryService.getOrganization(orgId);
         if (organization == null) {
           logger.warn("Skipping update of episode {} since organization {} is unknown",
-                  snapshot.getMediaPackage().getIdentifier().compact(), orgId);
+                  snapshot.getMediaPackage().getIdentifier().toString(), orgId);
           continue;
         }
         securityService.setOrganization(organization);
@@ -239,13 +239,12 @@ public class AssetManagerUpdatedEventHandler {
           // Update the asset manager with the modified mediapackage
           assetManager.takeSnapshot(snapshot.getOwner(), mp);
         } catch (AssetManagerException e) {
-          logger.error("Error updating mediapackage {}", mp.getIdentifier().compact(), e);
+          logger.error("Error updating mediapackage {}", mp.getIdentifier().toString(), e);
         }
       }
-    } catch (NotFoundException e) {
-      logger.warn(e.getMessage());
-    } catch (IOException e) {
-      logger.warn(e.getMessage());
+    } catch (IOException | NotFoundException e) {
+      logger.warn("Unable to handle update event for series {} for user {}: {}",
+                  seriesItem, prevUser.getUsername(), e.getMessage());
     } finally {
       securityService.setOrganization(prevOrg);
       securityService.setUser(prevUser);

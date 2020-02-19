@@ -21,6 +21,7 @@
 
 package org.opencastproject.adminui.endpoint;
 
+import static org.easymock.EasyMock.anyObject;
 import static org.easymock.EasyMock.anyString;
 import static org.easymock.EasyMock.expect;
 import static org.opencastproject.capture.CaptureParameters.INGEST_WORKFLOW_DEFINITION;
@@ -29,21 +30,14 @@ import static org.opencastproject.util.DateTimeSupport.fromUTC;
 import static org.opencastproject.util.IoSupport.withResource;
 import static org.opencastproject.util.PropertiesUtil.toDictionary;
 import static org.opencastproject.util.data.Collections.map;
-import static org.opencastproject.util.data.Option.none;
-import static org.opencastproject.util.data.Option.some;
 import static org.opencastproject.util.data.Tuple.tuple;
 
 import org.opencastproject.adminui.endpoint.AbstractEventEndpointTest.TestEnv;
 import org.opencastproject.adminui.impl.AdminUIConfiguration;
 import org.opencastproject.adminui.index.AdminUISearchIndex;
 import org.opencastproject.authorization.xacml.manager.api.AclService;
-import org.opencastproject.authorization.xacml.manager.api.EpisodeACLTransition;
 import org.opencastproject.authorization.xacml.manager.api.ManagedAcl;
-import org.opencastproject.authorization.xacml.manager.api.SeriesACLTransition;
-import org.opencastproject.authorization.xacml.manager.api.TransitionQuery;
-import org.opencastproject.authorization.xacml.manager.api.TransitionResult;
 import org.opencastproject.authorization.xacml.manager.impl.ManagedAclImpl;
-import org.opencastproject.authorization.xacml.manager.impl.TransitionResultImpl;
 import org.opencastproject.capture.CaptureParameters;
 import org.opencastproject.capture.admin.api.Agent;
 import org.opencastproject.capture.admin.api.CaptureAgentStateService;
@@ -89,7 +83,6 @@ import org.opencastproject.metadata.dublincore.MetadataCollection;
 import org.opencastproject.metadata.dublincore.StaticMetadataServiceDublinCoreImpl;
 import org.opencastproject.scheduler.api.Recording;
 import org.opencastproject.scheduler.api.SchedulerService;
-import org.opencastproject.scheduler.api.SchedulerService.ReviewStatus;
 import org.opencastproject.scheduler.api.TechnicalMetadata;
 import org.opencastproject.scheduler.api.TechnicalMetadataImpl;
 import org.opencastproject.security.api.AccessControlEntry;
@@ -104,6 +97,7 @@ import org.opencastproject.security.api.OrganizationDirectoryService;
 import org.opencastproject.security.api.Permissions;
 import org.opencastproject.security.api.SecurityService;
 import org.opencastproject.security.api.User;
+import org.opencastproject.security.api.UserDirectoryService;
 import org.opencastproject.security.urlsigning.service.UrlSigningService;
 import org.opencastproject.series.impl.SeriesServiceDatabaseException;
 import org.opencastproject.series.impl.SeriesServiceImpl;
@@ -118,7 +112,6 @@ import org.opencastproject.util.PropertiesUtil;
 import org.opencastproject.util.data.Function;
 import org.opencastproject.util.data.Option;
 import org.opencastproject.util.data.Tuple;
-import org.opencastproject.workflow.api.ConfiguredWorkflowRef;
 import org.opencastproject.workflow.api.WorkflowDefinition;
 import org.opencastproject.workflow.api.WorkflowDefinitionImpl;
 import org.opencastproject.workflow.api.WorkflowInstance;
@@ -257,15 +250,10 @@ public class TestEventEndpoint extends AbstractEventEndpoint {
     managedAcls.add(managedAcl1);
     managedAcls.add(new ManagedAclImpl(44L, "Private", defaultOrganization.getId(), acl));
 
-    Date transitionDate = new Date(DateTimeSupport.fromUTC("2014-06-05T15:00:00Z"));
-    TransitionResult transitionResult = getTransitionResult(managedAcl1, transitionDate);
-
     AclService aclService = EasyMock.createNiceMock(AclService.class);
     EasyMock.expect(aclService.getAcls()).andReturn(managedAcls).anyTimes();
-    EasyMock.expect(aclService.applyAclToEpisode(EasyMock.anyString(), EasyMock.anyObject(AccessControlList.class),
-            EasyMock.anyObject(Option.class))).andReturn(true).anyTimes();
-    EasyMock.expect(aclService.getTransitions(EasyMock.anyObject(TransitionQuery.class))).andReturn(transitionResult)
-            .anyTimes();
+    EasyMock.expect(aclService.applyAclToEpisode(EasyMock.anyString(), EasyMock.anyObject(AccessControlList.class)))
+        .andReturn(true).anyTimes();
     EasyMock.replay(aclService);
 
     env.setAclService(aclService);
@@ -465,10 +453,15 @@ public class TestEventEndpoint extends AbstractEventEndpoint {
             .anyTimes();
     EasyMock.replay(incidentService);
 
+    UserDirectoryService userDirectoryService = EasyMock.createMock(UserDirectoryService.class);
+    EasyMock.expect(userDirectoryService.loadUser(EasyMock.anyString())).andReturn(userWithPermissions).anyTimes();
+    EasyMock.replay(userDirectoryService);
+
     JobEndpoint endpoint = new JobEndpoint();
     endpoint.setServiceRegistry(serviceRegistry);
     endpoint.setWorkflowService(workflowService);
     endpoint.setIncidentService(incidentService);
+    endpoint.setUserDirectoryService(userDirectoryService);
     endpoint.activate(null);
     env.setJobService(endpoint);
 
@@ -491,7 +484,7 @@ public class TestEventEndpoint extends AbstractEventEndpoint {
             EasyMock.anyObject(Date.class))).andReturn(events).anyTimes();
     schedulerService.updateEvent(EasyMock.anyString(), EasyMock.anyObject(Opt.class), EasyMock.anyObject(Opt.class),
             EasyMock.anyObject(Opt.class), EasyMock.anyObject(Opt.class), EasyMock.anyObject(Opt.class),
-            EasyMock.anyObject(Opt.class), EasyMock.anyObject(Opt.class), EasyMock.anyObject(Opt.class));
+            EasyMock.anyObject(Opt.class), EasyMock.anyObject(Opt.class));
     EasyMock.expectLastCall().anyTimes();
     EasyMock.expect(schedulerService.getWorkflowConfig("asdasd")).andThrow(new NotFoundException()).anyTimes();
     Map<String, String> workFlowConfig = new HashMap<>();
@@ -511,7 +504,7 @@ public class TestEventEndpoint extends AbstractEventEndpoint {
     wfProperties.put("test", "false");
     wfProperties.put("skip", "true");
     TechnicalMetadata technicalMetadata = new TechnicalMetadataImpl("asdasd", "demo",
-            new Date(fromUTC("2017-01-27T10:00:37Z")), new Date(fromUTC("2017-01-27T10:10:37Z")), false, userIds,
+            new Date(fromUTC("2017-01-27T10:00:37Z")), new Date(fromUTC("2017-01-27T10:10:37Z")), userIds,
             wfProperties, caProperties, Opt.<Recording> none());
     expect(schedulerService.getTechnicalMetadata("notExists")).andThrow(new NotFoundException()).anyTimes();
     expect(schedulerService.getTechnicalMetadata(anyString())).andReturn(technicalMetadata).anyTimes();
@@ -534,7 +527,6 @@ public class TestEventEndpoint extends AbstractEventEndpoint {
     episodeDublinCoreCatalogUIAdapter.updated(toDictionary(episodeCatalogProperties));
 
     Series series = new Series();
-    series.setOptOut(true);
 
     Event event = createEvent("asdasd", "title", Source.SCHEDULE);
     Event event2 = createEvent("archivedid", "title 2", Source.ARCHIVE);
@@ -564,9 +556,13 @@ public class TestEventEndpoint extends AbstractEventEndpoint {
 
     IndexService indexService = EasyMock.createNiceMock(IndexService.class);
     EasyMock.expect(indexService.getEvent("asdasd", searchIndex)).andReturn(Opt.some(event)).anyTimes();
+    EasyMock.expect(indexService.getEvent("exists", searchIndex)).andReturn(Opt.some(event)).anyTimes();
+    EasyMock.expect(indexService.getEvent("exists2", searchIndex)).andReturn(Opt.some(event2)).anyTimes();
     EasyMock.expect(indexService.getEvent("archivedid", searchIndex)).andReturn(Opt.some(event2)).anyTimes();
     EasyMock.expect(indexService.getEvent("workflowid", searchIndex)).andReturn(Opt.some(event3)).anyTimes();
     EasyMock.expect(indexService.getEvent("notExists", searchIndex)).andReturn(Opt.<Event> none()).anyTimes();
+    EasyMock.expect(indexService.getEvent("notExists2", searchIndex)).andReturn(Opt.<Event> none()).anyTimes();
+    EasyMock.expect(indexService.getEvent("updateFailure", searchIndex)).andReturn(Opt.some(event3)).anyTimes();
     EasyMock.expect(indexService.getSeries("seriesId", searchIndex)).andReturn(Opt.some(series)).anyTimes();
     EasyMock.expect(indexService.getEventMediapackage(event)).andReturn(mp1).anyTimes();
     EasyMock.expect(indexService.getEventCatalogUIAdapters()).andReturn(eventCatalogAdapterList).anyTimes();
@@ -575,8 +571,10 @@ public class TestEventEndpoint extends AbstractEventEndpoint {
     EasyMock.expect(indexService.getEventSource(event2)).andReturn(Source.ARCHIVE).anyTimes();
     EasyMock.expect(indexService.getEventSource(event3)).andReturn(Source.WORKFLOW).anyTimes();
     MetadataList metaDataList = new MetadataList();
+    EasyMock.expect(indexService.updateAllEventMetadata(EasyMock.eq("updateFailure"), EasyMock.anyString(),
+      EasyMock.anyObject(AbstractSearchIndex.class))).andThrow(new IllegalArgumentException());
     EasyMock.expect(indexService.updateAllEventMetadata(EasyMock.anyString(), EasyMock.anyString(),
-            EasyMock.anyObject(AbstractSearchIndex.class))).andReturn(metaDataList).anyTimes();
+      EasyMock.anyObject(AbstractSearchIndex.class))).andReturn(metaDataList).anyTimes();
     EasyMock.replay(indexService);
     env.setIndexService(indexService);
   }
@@ -586,9 +584,8 @@ public class TestEventEndpoint extends AbstractEventEndpoint {
     EasyMock.expect(event.getIdentifier()).andReturn(id).anyTimes();
     EasyMock.expect(event.getTitle()).andReturn(title).anyTimes();
     EasyMock.expect(event.getSeriesId()).andReturn("seriesId").anyTimes();
-    EasyMock.expect(event.getReviewStatus()).andReturn(ReviewStatus.UNSENT.toString()).anyTimes();
     EasyMock.expect(event.getEventStatus()).andReturn("EVENTS.EVENTS.STATUS.ARCHIVE").anyTimes();
-    EasyMock.expect(event.getOptedOut()).andReturn(true).anyTimes();
+    EasyMock.expect(event.getDisplayableStatus(anyObject())).andReturn("EVENTS.EVENTS.STATUS.ARCHIVE").anyTimes();
     EasyMock.expect(event.getRecordingStartDate()).andReturn("2013-03-20T04:00:00Z").anyTimes();
     EasyMock.expect(event.getRecordingEndDate()).andReturn("2013-03-20T05:00:00Z").anyTimes();
     EasyMock.expect(event.getTechnicalStartTime()).andReturn("2013-03-20T04:00:00Z").anyTimes();
@@ -634,7 +631,7 @@ public class TestEventEndpoint extends AbstractEventEndpoint {
 
       @Override
       public MetadataCollection getFields(MediaPackage mediapackage) {
-        return super.getFields(null);
+        return super.getRawFields();
       }
     };
     commonEventCatalogUIAdapter.updated(properties);
@@ -683,7 +680,6 @@ public class TestEventEndpoint extends AbstractEventEndpoint {
       public Properties getConfiguration() {
         Properties properties = new Properties();
         properties.put(CaptureParameters.CAPTURE_DEVICE_NAMES, "input1,input2");
-        properties.put(CaptureParameters.AGENT_NAME, "testagent");
         properties.put("capture.device.timezone.offset", "-360");
         properties.put("capture.device.timezone", "America/Los_Angeles");
         return properties;
@@ -696,91 +692,6 @@ public class TestEventEndpoint extends AbstractEventEndpoint {
         return properties;
       }
     };
-  }
-
-  private TransitionResult getTransitionResult(final ManagedAcl macl, final Date now) {
-    return new TransitionResultImpl(
-            org.opencastproject.util.data.Collections.<EpisodeACLTransition> list(new EpisodeACLTransition() {
-              @Override
-              public String getEpisodeId() {
-                return "episode";
-              }
-
-              @Override
-              public Option<ManagedAcl> getAccessControlList() {
-                return some(macl);
-              }
-
-              @Override
-              public boolean isDelete() {
-                return getAccessControlList().isNone();
-              }
-
-              @Override
-              public long getTransitionId() {
-                return 1L;
-              }
-
-              @Override
-              public String getOrganizationId() {
-                return "org";
-              }
-
-              @Override
-              public Date getApplicationDate() {
-                return now;
-              }
-
-              @Override
-              public Option<ConfiguredWorkflowRef> getWorkflow() {
-                return none();
-              }
-
-              @Override
-              public boolean isDone() {
-                return false;
-              }
-            }), org.opencastproject.util.data.Collections.<SeriesACLTransition> list(new SeriesACLTransition() {
-              @Override
-              public String getSeriesId() {
-                return "series";
-              }
-
-              @Override
-              public ManagedAcl getAccessControlList() {
-                return macl;
-              }
-
-              @Override
-              public boolean isOverride() {
-                return true;
-              }
-
-              @Override
-              public long getTransitionId() {
-                return 2L;
-              }
-
-              @Override
-              public String getOrganizationId() {
-                return "org";
-              }
-
-              @Override
-              public Date getApplicationDate() {
-                return now;
-              }
-
-              @Override
-              public Option<ConfiguredWorkflowRef> getWorkflow() {
-                return none();
-              }
-
-              @Override
-              public boolean isDone() {
-                return false;
-              }
-            }));
   }
 
   private MediaPackage loadMpFromResource(String name) throws Exception {
@@ -870,6 +781,11 @@ public class TestEventEndpoint extends AbstractEventEndpoint {
 
   @Override
   public Boolean getOnlySeriesWithWriteAccessEventModal() {
+    return false;
+  }
+
+  @Override
+  public Boolean getOnlyEventsWithWriteAccessEventsTab() {
     return false;
   }
 }

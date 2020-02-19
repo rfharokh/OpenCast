@@ -23,6 +23,7 @@ package org.opencastproject.index.service.catalog.adapter.series;
 
 import static java.util.Objects.requireNonNull;
 
+import org.opencastproject.mediapackage.MediaPackageElementFlavor;
 import org.opencastproject.mediapackage.MediaPackageElements;
 import org.opencastproject.metadata.dublincore.DublinCoreCatalog;
 import org.opencastproject.security.api.UnauthorizedException;
@@ -31,7 +32,6 @@ import org.opencastproject.util.NotFoundException;
 
 import com.entwinemedia.fn.data.Opt;
 
-import org.apache.commons.lang3.exception.ExceptionUtils;
 import org.osgi.service.cm.ManagedService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -41,8 +41,8 @@ public class CommonSeriesCatalogUIAdapter extends ConfigurableSeriesDCCatalogUIA
   private static final Logger logger = LoggerFactory.getLogger(CommonSeriesCatalogUIAdapter.class);
 
   @Override
-  public String getFlavor() {
-    return MediaPackageElements.SERIES.toString();
+  public MediaPackageElementFlavor getFlavor() {
+    return MediaPackageElements.SERIES;
   }
 
   @Override
@@ -55,8 +55,7 @@ public class CommonSeriesCatalogUIAdapter extends ConfigurableSeriesDCCatalogUIA
     try {
       return Opt.nul(getSeriesService().getSeries(requireNonNull(seriesId)));
     } catch (SeriesException e) {
-      logger.error("Error while loading DublinCore catalog of series '{}': {}", seriesId,
-              ExceptionUtils.getStackTrace(e));
+      logger.error("Error while loading DublinCore catalog of series '{}':", seriesId, e);
       return Opt.none();
     } catch (NotFoundException e) {
       logger.debug("No DublinCore metadata catalog for series '{}' found", seriesId);

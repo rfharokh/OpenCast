@@ -45,9 +45,7 @@ import org.opencastproject.mediapackage.MediaPackageException;
 import org.opencastproject.mediapackage.MediaPackageParser;
 import org.opencastproject.mediapackage.MediaPackageSupport;
 import org.opencastproject.mediapackage.Track;
-import org.opencastproject.mediapackage.identifier.HandleException;
 import org.opencastproject.mediapackage.identifier.IdImpl;
-import org.opencastproject.mediapackage.identifier.UUIDIdBuilderImpl;
 import org.opencastproject.metadata.dublincore.DCMIPeriod;
 import org.opencastproject.metadata.dublincore.DublinCore;
 import org.opencastproject.metadata.dublincore.DublinCoreCatalog;
@@ -56,9 +54,6 @@ import org.opencastproject.metadata.dublincore.DublinCoreValue;
 import org.opencastproject.metadata.dublincore.EncodingSchemeUtils;
 import org.opencastproject.scheduler.api.SchedulerException;
 import org.opencastproject.scheduler.api.SchedulerService;
-import org.opencastproject.security.api.AccessControlEntry;
-import org.opencastproject.security.api.AccessControlList;
-import org.opencastproject.security.api.AuthorizationService;
 import org.opencastproject.security.api.OrganizationDirectoryService;
 import org.opencastproject.security.api.SecurityService;
 import org.opencastproject.security.api.TrustedHttpClient;
@@ -96,6 +91,7 @@ import org.apache.commons.compress.archivers.zip.ZipArchiveEntry;
 import org.apache.commons.compress.archivers.zip.ZipArchiveInputStream;
 import org.apache.commons.io.FilenameUtils;
 import org.apache.commons.io.IOUtils;
+import org.apache.commons.lang3.BooleanUtils;
 import org.apache.commons.lang3.StringUtils;
 import org.apache.cxf.jaxrs.ext.multipart.ContentDisposition;
 import org.apache.http.Header;
@@ -129,6 +125,7 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
+import java.util.Objects;
 import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.TimeUnit;
@@ -156,9 +153,6 @@ public class IngestServiceImpl extends AbstractJobProducer implements IngestServ
   public static final String LEGACY_MEDIAPACKAGE_ID_KEY = "org.opencastproject.ingest.legacy.mediapackage.id";
 
   public static final String JOB_TYPE = "org.opencastproject.ingest";
-
-  /** Managed Property key to overwrite existing series */
-  public static final String PROPKEY_OVERWRITE_SERIES = "org.opencastproject.series.overwrite";
 
   /** Methods that ingest zips create jobs with this operation type */
   public static final String INGEST_ZIP = "zip";
@@ -202,6 +196,33 @@ public class IngestServiceImpl extends AbstractJobProducer implements IngestServ
   /** The password for download from external sources */
   public static final String DOWNLOAD_PASSWORD = "org.opencastproject.download.password";
 
+  /** By default, do not allow event ingest to modify existing series metadata */
+  public static final boolean DEFAULT_ALLOW_SERIES_MODIFICATIONS = false;
+
+  /** The default is to preserve existing Opencast flavors during ingest. */
+  public static final boolean DEFAULT_ALLOW_ONLY_NEW_FLAVORS = true;
+
+  /** The default is not to automatically skip attachments and catalogs from capture agent */
+  public static final boolean DEFAULT_SKIP = false;
+
+  /** Managed Property key to allow Opencast series modification during ingest
+   * Deprecated, the param potentially causes an update chain reaction for all
+   * events associated to that series, for each ingest */
+  @Deprecated
+  public static final String MODIFY_OPENCAST_SERIES_KEY = "org.opencastproject.series.overwrite";
+
+  /** Managed Property key to allow new flavors of ingested attachments and catalogs
+   * to be added to the existing Opencast mediapackage. But, not catalogs and attachments
+   * that would overwrite existing ones in Opencast.
+   */
+  public static final String ADD_ONLY_NEW_FLAVORS_KEY = "add.only.new.catalogs.attachments.for.existing.events";
+
+  /** Control if catalogs sent by capture agents for scheduled events are skipped. */
+  public static final String SKIP_CATALOGS_KEY = "skip.catalogs.for.existing.events";
+
+  /** Control if attachments sent by capture agents for scheduled events are skipped. */
+  public static final String SKIP_ATTACHMENTS_KEY = "skip.attachments.for.existing.events";
+
   /** The approximate load placed on the system by ingesting a file */
   private float ingestFileJobLoad = DEFAULT_INGEST_FILE_JOB_LOAD;
 
@@ -241,9 +262,6 @@ public class IngestServiceImpl extends AbstractJobProducer implements IngestServ
   /** The opencast service registry */
   private ServiceRegistry serviceRegistry;
 
-  /** The authorization service */
-  private AuthorizationService authorizationService = null;
-
   /** The security service */
   protected SecurityService securityService = null;
 
@@ -266,11 +284,13 @@ public class IngestServiceImpl extends AbstractJobProducer implements IngestServ
   private Cache<String, Long> partialTrackStartTimes = CacheBuilder.newBuilder().expireAfterWrite(1, TimeUnit.DAYS)
           .build();
 
-  /** The default is to overwrite series catalog on ingest */
-  protected boolean defaultIsOverWriteSeries = true;
+  /** Option to overwrite matching flavors (e.g. series and episode metadata) on ingest,
+   *  tracks are always taken on ingest */
+  protected boolean isAddOnlyNew = DEFAULT_ALLOW_ONLY_NEW_FLAVORS;
+  protected boolean isAllowModifySeries = DEFAULT_ALLOW_SERIES_MODIFICATIONS;
 
-  /** Option to overwrite series on ingest */
-  protected boolean isOverwriteSeries = defaultIsOverWriteSeries;
+  private boolean skipCatalogs = DEFAULT_SKIP;
+  private boolean skipAttachments = DEFAULT_SKIP;
 
   /**
    * Creates a new ingest service instance.
@@ -311,6 +331,7 @@ public class IngestServiceImpl extends AbstractJobProducer implements IngestServ
    */
   @Override
   public void updated(Dictionary<String, ?> properties) throws ConfigurationException {
+
     if (properties == null) {
       logger.info("No configuration available, using defaults");
       return;
@@ -320,19 +341,24 @@ public class IngestServiceImpl extends AbstractJobProducer implements IngestServ
     downloadUser = StringUtils.trimToEmpty(((String) properties.get(DOWNLOAD_USER)));
     downloadSource = StringUtils.trimToEmpty(((String) properties.get(DOWNLOAD_SOURCE)));
 
+    skipAttachments = BooleanUtils.toBoolean(Objects.toString(properties.get(SKIP_ATTACHMENTS_KEY),
+            BooleanUtils.toStringTrueFalse(DEFAULT_SKIP)));
+    skipCatalogs = BooleanUtils.toBoolean(Objects.toString(properties.get(SKIP_CATALOGS_KEY),
+            BooleanUtils.toStringTrueFalse(DEFAULT_SKIP)));
+    logger.debug("Skip attachments sent by agents for scheduled events: {}", skipAttachments);
+    logger.debug("Skip metadata catalogs sent by agents for scheduled events: {}", skipCatalogs);
+
     ingestFileJobLoad = LoadUtil.getConfiguredLoadValue(properties, FILE_JOB_LOAD_KEY, DEFAULT_INGEST_FILE_JOB_LOAD,
             serviceRegistry);
     ingestZipJobLoad = LoadUtil.getConfiguredLoadValue(properties, ZIP_JOB_LOAD_KEY, DEFAULT_INGEST_ZIP_JOB_LOAD,
             serviceRegistry);
-    // try to get overwrite series option from config, use default if not configured
-    try {
-      isOverwriteSeries = Boolean.parseBoolean(((String) properties.get(PROPKEY_OVERWRITE_SERIES)).trim());
-    } catch (Exception e) {
-      isOverwriteSeries = defaultIsOverWriteSeries;
-      logger.warn("Unable to update configuration. {}", e.getMessage());
-    }
-    logger.info("Configuration updated. It is {} that existing series will be overwritten during ingest.",
-            isOverwriteSeries);
+
+    isAllowModifySeries = BooleanUtils.toBoolean(Objects.toString(properties.get(MODIFY_OPENCAST_SERIES_KEY),
+              BooleanUtils.toStringTrueFalse(DEFAULT_ALLOW_SERIES_MODIFICATIONS)));
+    isAddOnlyNew = BooleanUtils.toBoolean(Objects.toString(properties.get(ADD_ONLY_NEW_FLAVORS_KEY),
+            BooleanUtils.toStringTrueFalse(DEFAULT_ALLOW_ONLY_NEW_FLAVORS)));
+    logger.info("Only allow new flavored catalogs and attachments on ingest:'{}'", isAddOnlyNew);
+    logger.info("Allowing series modification:'{}'", isAllowModifySeries);
   }
 
   /**
@@ -356,16 +382,6 @@ public class IngestServiceImpl extends AbstractJobProducer implements IngestServ
   }
 
   /**
-   * Sets the authorization service
-   *
-   * @param authorizationService
-   *          the authorization service to set
-   */
-  public void setAuthorizationService(AuthorizationService authorizationService) {
-    this.authorizationService = authorizationService;
-  }
-
-  /**
    * Sets the media inspection service
    *
    * @param mediaInspectionService
@@ -375,12 +391,6 @@ public class IngestServiceImpl extends AbstractJobProducer implements IngestServ
     this.mediaInspectionService = mediaInspectionService;
   }
 
-  /**
-   * {@inheritDoc}
-   *
-   * @see org.opencastproject.ingest.api.IngestService#addZippedMediaPackage(java.io.InputStream)
-   */
-  @Override
   public WorkflowInstance addZippedMediaPackage(InputStream zipStream)
           throws IngestException, IOException, MediaPackageException {
     try {
@@ -390,22 +400,6 @@ public class IngestServiceImpl extends AbstractJobProducer implements IngestServ
     }
   }
 
-  /**
-   * {@inheritDoc}
-   *
-   * @see org.opencastproject.ingest.api.IngestService#addZippedMediaPackage(java.io.InputStream, java.lang.String)
-   */
-  @Override
-  public WorkflowInstance addZippedMediaPackage(InputStream zipStream, String wd)
-          throws MediaPackageException, IOException, IngestException, NotFoundException {
-    return addZippedMediaPackage(zipStream, wd, null);
-  }
-
-  /**
-   * {@inheritDoc}
-   *
-   * @see org.opencastproject.ingest.api.IngestService#addZippedMediaPackage(java.io.InputStream, java.lang.String)
-   */
   @Override
   public WorkflowInstance addZippedMediaPackage(InputStream zipStream, String wd, Map<String, String> workflowConfig)
           throws MediaPackageException, IOException, IngestException, NotFoundException {
@@ -518,7 +512,7 @@ public class IngestServiceImpl extends AbstractJobProducer implements IngestServ
 
       // Determine the mediapackage identifier
       if (mp.getIdentifier() == null || isBlank(mp.getIdentifier().toString()))
-        mp.setIdentifier(new UUIDIdBuilderImpl().createNew());
+        mp.setIdentifier(IdImpl.fromUUID());
 
       String mediaPackageId = mp.getIdentifier().toString();
 
@@ -622,7 +616,7 @@ public class IngestServiceImpl extends AbstractJobProducer implements IngestServ
    * @see org.opencastproject.ingest.api.IngestService#createMediaPackage()
    */
   @Override
-  public MediaPackage createMediaPackage() throws MediaPackageException, ConfigurationException, HandleException {
+  public MediaPackage createMediaPackage() throws MediaPackageException, ConfigurationException {
     MediaPackage mediaPackage;
     try {
       mediaPackage = MediaPackageBuilderFactory.newInstance().newMediaPackageBuilder().createNew();
@@ -642,11 +636,11 @@ public class IngestServiceImpl extends AbstractJobProducer implements IngestServ
    */
   @Override
   public MediaPackage createMediaPackage(String mediaPackageId)
-          throws MediaPackageException, ConfigurationException, HandleException {
+          throws MediaPackageException, ConfigurationException {
     MediaPackage mediaPackage;
     try {
       mediaPackage = MediaPackageBuilderFactory.newInstance().newMediaPackageBuilder()
-              .createNew(new UUIDIdBuilderImpl().fromString(mediaPackageId));
+              .createNew(new IdImpl(mediaPackageId));
     } catch (MediaPackageException e) {
       logger.error("INGEST:Failed to create media package " + e.getLocalizedMessage());
       throw e;
@@ -873,6 +867,8 @@ public class IngestServiceImpl extends AbstractJobProducer implements IngestServ
    *          the URI to the dublin core document containing series metadata.
    * @return
    *         true, if the series is created or overwritten, false if the existing series remains intact.
+   * @throws IOException if the series catalog was not found
+   * @throws IngestException if any other exception was encountered
    */
   protected boolean updateSeries(URI uri) throws IOException, IngestException {
     HttpResponse response = null;
@@ -890,7 +886,7 @@ public class IngestServiceImpl extends AbstractJobProducer implements IngestServ
         try {
           try {
             seriesService.getSeries(id);
-            if (isOverwriteSeries) {
+            if (isAllowModifySeries) {
               // Update existing series
               seriesService.updateSeries(dc);
               isUpdated = true;
@@ -902,9 +898,6 @@ public class IngestServiceImpl extends AbstractJobProducer implements IngestServ
             logger.info("Creating new series {} with default ACL", id);
             seriesService.updateSeries(dc);
             isUpdated = true;
-            String anonymousRole = securityService.getOrganization().getAnonymousRole();
-            AccessControlList acl = new AccessControlList(new AccessControlEntry(anonymousRole, "read", true));
-            seriesService.updateAccessControl(id, acl);
           }
 
         } catch (Exception e) {
@@ -1081,21 +1074,6 @@ public class IngestServiceImpl extends AbstractJobProducer implements IngestServ
    * {@inheritDoc}
    *
    * @see org.opencastproject.ingest.api.IngestService#ingest(org.opencastproject.mediapackage.MediaPackage,
-   *      java.lang.String)
-   */
-  @Override
-  public WorkflowInstance ingest(MediaPackage mp, String wd) throws IngestException, NotFoundException {
-    try {
-      return ingest(mp, wd, null, null);
-    } catch (UnauthorizedException e) {
-      throw new IllegalStateException(e);
-    }
-  }
-
-  /**
-   * {@inheritDoc}
-   *
-   * @see org.opencastproject.ingest.api.IngestService#ingest(org.opencastproject.mediapackage.MediaPackage,
    *      java.lang.String, java.util.Map)
    */
   @Override
@@ -1146,7 +1124,7 @@ public class IngestServiceImpl extends AbstractJobProducer implements IngestServ
       WorkflowDefinition workflowDef = getWorkflowDefinition(workflowDefinitionId, mp);
 
       // Get the final set of workflow properties
-      properties = mergeWorkflowConfiguration(properties, mp.getIdentifier().compact());
+      properties = mergeWorkflowConfiguration(properties, mp.getIdentifier().toString());
 
       // Remove potential workflow configuration prefixes from the workflow properties
       properties = removePrefixFromProperties(properties);
@@ -1233,7 +1211,7 @@ public class IngestServiceImpl extends AbstractJobProducer implements IngestServ
     }
     try {
       schedulerService.addEvent(period.getStart(), period.getEnd(), captureAgent, new HashSet<>(), mediaPackage,
-              workflowProperties, agentProperties, Opt.none(), Opt.none());
+              workflowProperties, agentProperties, Opt.none());
     } finally {
       for (MediaPackageElement mediaPackageElement : mediaPackage.getElements()) {
         try {
@@ -1263,17 +1241,17 @@ public class IngestServiceImpl extends AbstractJobProducer implements IngestServ
       String mediaPackageId = properties.get(LEGACY_MEDIAPACKAGE_ID_KEY);
       if (StringUtils.isNotBlank(mediaPackageId) && schedulerService != null) {
         logger.debug("Check ingested mediapackage {} for legacy mediapackage identifier {}",
-                mp.getIdentifier().compact(), mediaPackageId);
+                mp.getIdentifier().toString(), mediaPackageId);
         try {
-          schedulerService.getMediaPackage(mp.getIdentifier().compact());
+          schedulerService.getMediaPackage(mp.getIdentifier().toString());
           return mp;
         } catch (NotFoundException e) {
           logger.info("No scheduler mediapackage found with ingested id {}, try legacy mediapackage id {}",
-                  mp.getIdentifier().compact(), mediaPackageId);
+                  mp.getIdentifier().toString(), mediaPackageId);
           try {
             schedulerService.getMediaPackage(mediaPackageId);
             logger.info("Legacy mediapackage id {} exists, change ingested mediapackage id {} to legacy id",
-                    mediaPackageId, mp.getIdentifier().compact());
+                    mediaPackageId, mp.getIdentifier().toString());
             mp.setIdentifier(new IdImpl(mediaPackageId));
             return mp;
           } catch (NotFoundException e1) {
@@ -1283,7 +1261,7 @@ public class IngestServiceImpl extends AbstractJobProducer implements IngestServ
             throw new IngestException(e);
           }
         } catch (Exception e) {
-          logger.error("Unable to get event mediapackage from scheduler event {}", mp.getIdentifier().compact(), e);
+          logger.error("Unable to get event mediapackage from scheduler event {}", mp.getIdentifier().toString(), e);
           throw new IngestException(e);
         }
       }
@@ -1335,8 +1313,8 @@ public class IngestServiceImpl extends AbstractJobProducer implements IngestServ
     }
 
     try {
-      MediaPackage scheduledMp = schedulerService.getMediaPackage(mp.getIdentifier().compact());
-      logger.info("Found matching scheduled event for id '{}', merging mediapackage...", mp.getIdentifier().compact());
+      MediaPackage scheduledMp = schedulerService.getMediaPackage(mp.getIdentifier().toString());
+      logger.info("Found matching scheduled event for id '{}', merging mediapackage...", mp.getIdentifier().toString());
       mergeMediaPackageElements(mp, scheduledMp);
       mergeMediaPackageMetadata(mp, scheduledMp);
       return mp;
@@ -1349,44 +1327,110 @@ public class IngestServiceImpl extends AbstractJobProducer implements IngestServ
     }
   }
 
+  /**
+   * Merge different elements from capture agent ingesting mp and Asset manager. Overwrite or replace same flavored
+   * elements depending on the Ingest Service overwrite configuration. Ignore publications (i.e. live publication
+   * channel from Asset Manager) Always keep tracks from the capture agent.
+   *
+   * @param mp
+   *          the medipackage being ingested from the Capture Agent
+   * @param scheduledMp
+   *          the mediapckage that was schedule and managed by the Asset Manager
+   */
   private void mergeMediaPackageElements(MediaPackage mp, MediaPackage scheduledMp) {
-    for (MediaPackageElement element : scheduledMp.getElements()) {
-      // Asset manager media package may have a publication element (for live) if retract live has not run yet
-      if (element.getFlavor() != null
-              && !MediaPackageElement.Type.Publication.equals(element.getElementType())
-              && mp.getElementsByFlavor(element.getFlavor()).length > 0) {
-        logger.info("Ignore scheduled element '{}', there is already an ingested element with flavor '{}'", element,
-                element.getFlavor());
-        continue;
+    // drop catalogs sent by the capture agent in favor of Opencast's own metadata
+    if (skipCatalogs) {
+      for (MediaPackageElement element : mp.getCatalogs()) {
+        if (!element.getFlavor().equals(MediaPackageElements.SMIL)) {
+          mp.remove(element);
+        }
       }
-      logger.info("Adding new scheduled element '{}' to ingested mediapackage", element);
+    }
+
+    // drop attachments the capture agent sent us in favor of Opencast's attachments
+    // e.g. prevent capture agents from modifying security rules of schedules events
+    if (skipAttachments) {
+      for (MediaPackageElement element : mp.getAttachments()) {
+        mp.remove(element);
+      }
+    }
+
+    for (MediaPackageElement element : scheduledMp.getElements()) {
+      if (MediaPackageElement.Type.Publication.equals(element.getElementType())) {
+        // The Asset managed media package may have a publication element for a live event, if retract live has not run yet.
+        // Publications do not have flavors and are never part of the mediapackage from the capture agent.
+        // Therefore, ignore publication element because it is removed when the recorded media is published and causes complications (on short media) if added.
+        logger.debug("Ignoring {}, not adding to ingested mediapackage {}", MediaPackageElement.Type.Publication, mp);
+        continue;
+      } else if (mp.getElementsByFlavor(element.getFlavor()).length > 0) {
+        // The default is to overwrite matching flavored elements in the Asset managed mediapackage (e.g. catalogs)
+        // If isOverwrite is true, changes made from the CA overwrite (update/revert) changes made from the Admin UI.
+        // If isOverwrite is false, changes made from the CA do not overwrite (update/revert) changes made from the Admin UI.
+        // regardless of overwrite, always keep new ingested tracks.
+        if (!isAddOnlyNew || MediaPackageElement.Type.Track.equals(element.getElementType())) {
+          // Allow updates made from the Capture Agent to overwrite existing metadata in Opencast
+          logger.info(
+                  "Omitting Opencast (Asset Managed) element '{}', replacing with ingested element of same flavor '{}'",
+                  element,
+                  element.getFlavor());
+          continue;
+        }
+        // Remove flavored element from ingested mp and replaced it with maching element from Asset Managed mediapackage.
+        // This protects updates made from the admin UI during an event capture from being reverted by artifacts from the ingested CA.
+        for (MediaPackageElement el : mp.getElementsByFlavor(element.getFlavor())) {
+          logger.info("Omitting ingested element '{}' {}, keeping existing (Asset Managed) element of same flavor '{}'", el, el.getURI(),
+                  element.getFlavor());
+          mp.remove(el);
+        }
+      }
+      logger.info("Adding element {} from scheduled (Asset Managed) event '{}' into ingested mediapackage", element, mp);
       mp.add(element);
     }
   }
 
+  /**
+   *
+   * The previous OC behaviour is for metadata in the ingested mediapackage to be updated by the
+   * Asset Managed metadata *only* when the field is blank on the ingested mediapackage.
+   * However, that field may have been intentionally emptied by
+   * removing its value from the Capture Agent UI (e.g. Galicaster)
+   *
+   * If isOverwrite is true, metadata values in the ingest mediapackage overwrite Asset Managed metadata.
+   * If isOverwrite is false, Asset Managed metadata is preserved.
+   *
+   * @param mp,
+   *          the inbound ingested mp
+   * @param scheduledMp,
+   *          the existing scheduled mp
+   */
   private void mergeMediaPackageMetadata(MediaPackage mp, MediaPackage scheduledMp) {
-    // Merge media package fields
-    if (mp.getDate() == null)
+    // Merge media package fields depending on overwrite setting
+    boolean noOverwrite = (isAddOnlyNew && !skipCatalogs) || skipCatalogs;
+    if ((mp.getDate() == null) || noOverwrite)
       mp.setDate(scheduledMp.getDate());
-    if (isBlank(mp.getLicense()))
+    if (isBlank(mp.getLicense()) || noOverwrite)
       mp.setLicense(scheduledMp.getLicense());
-    if (isBlank(mp.getSeries()))
+    if (isBlank(mp.getSeries()) || noOverwrite)
       mp.setSeries(scheduledMp.getSeries());
-    if (isBlank(mp.getSeriesTitle()))
+    if (isBlank(mp.getSeriesTitle()) || noOverwrite)
       mp.setSeriesTitle(scheduledMp.getSeriesTitle());
-    if (isBlank(mp.getTitle()))
+    if (isBlank(mp.getTitle()) || noOverwrite)
       mp.setTitle(scheduledMp.getTitle());
-    if (mp.getSubjects().length == 0) {
+
+    if (mp.getSubjects().length <= 0 || noOverwrite) {
+      Arrays.stream(mp.getSubjects()).forEach(mp::removeSubject);
       for (String subject : scheduledMp.getSubjects()) {
         mp.addSubject(subject);
       }
     }
-    if (mp.getContributors().length == 0) {
+    if (noOverwrite || mp.getContributors().length == 0) {
+      Arrays.stream(mp.getContributors()).forEach(mp::removeContributor);
       for (String contributor : scheduledMp.getContributors()) {
         mp.addContributor(contributor);
       }
     }
-    if (mp.getCreators().length == 0) {
+    if (noOverwrite || mp.getCreators().length == 0) {
+      Arrays.stream(mp.getCreators()).forEach(mp::removeCreator);
       for (String creator : scheduledMp.getCreators()) {
         mp.addCreator(creator);
       }
@@ -1419,7 +1463,7 @@ public class IngestServiceImpl extends AbstractJobProducer implements IngestServ
           throws NotFoundException, WorkflowDatabaseException, IngestException {
     // If the workflow definition and instance ID are null, use the default, or throw if there is none
     if (isBlank(workflowDefinitionID)) {
-      String mediaPackageId = mediapackage.getIdentifier().compact();
+      String mediaPackageId = mediapackage.getIdentifier().toString();
       if (schedulerService != null) {
         logger.info("Determining workflow template for ingested mediapckage {} from capture event {}", mediapackage,
                 mediaPackageId);
@@ -1493,7 +1537,7 @@ public class IngestServiceImpl extends AbstractJobProducer implements IngestServ
    */
   @Override
   public void discardMediaPackage(MediaPackage mp) throws IOException {
-    String mediaPackageId = mp.getIdentifier().compact();
+    String mediaPackageId = mp.getIdentifier().toString();
     for (MediaPackageElement element : mp.getElements()) {
       if (!workingFileRepository.delete(mediaPackageId, element.getIdentifier()))
         logger.warn("Unable to find (and hence, delete), this mediapackage element");
@@ -1504,9 +1548,9 @@ public class IngestServiceImpl extends AbstractJobProducer implements IngestServ
   /**
    * Creates a StandAloneTrustedHttpClientImpl
    *
-   * @param user
-   * @param password
-   * @return
+   * @param user the username
+   * @param password the password
+   * @return the trusted client
    */
   protected TrustedHttpClient createStandaloneHttpClient(String user, String password) {
     return new StandAloneTrustedHttpClientImpl(this.downloadUser, this.downloadPassword, none(), none(), none());
@@ -1566,7 +1610,7 @@ public class IngestServiceImpl extends AbstractJobProducer implements IngestServ
         ingestStatistics.add(totalNumBytesRead - oldTotalNumBytesRead);
       }
     });
-    return workingFileRepository.put(mp.getIdentifier().compact(), elementId, filename, progressInputStream);
+    return workingFileRepository.put(mp.getIdentifier().toString(), elementId, filename, progressInputStream);
   }
 
   private MediaPackage addContentToMediaPackage(MediaPackage mp, String elementId, URI uri,
@@ -1743,7 +1787,7 @@ public class IngestServiceImpl extends AbstractJobProducer implements IngestServ
     try {
       in = XmlUtil.serializeDocument(smilDocument);
       String elementId = UUID.randomUUID().toString();
-      URI uri = workingFileRepository.put(mediaPackage.getIdentifier().compact(), elementId, PARTIAL_SMIL_NAME, in);
+      URI uri = workingFileRepository.put(mediaPackage.getIdentifier().toString(), elementId, PARTIAL_SMIL_NAME, in);
       MediaPackageElement mpe = mediaPackage.add(uri, MediaPackageElement.Type.Catalog, MediaPackageElements.SMIL);
       mpe.setIdentifier(elementId);
       // Reset the checksum since it changed
@@ -1768,7 +1812,7 @@ public class IngestServiceImpl extends AbstractJobProducer implements IngestServ
               public org.w3c.dom.Document apply(MediaPackageElement mpe) {
                 InputStream in = null;
                 try {
-                  in = workingFileRepository.get(mpe.getMediaPackage().getIdentifier().compact(), mpe.getIdentifier());
+                  in = workingFileRepository.get(mpe.getMediaPackage().getIdentifier().toString(), mpe.getIdentifier());
                   return SmilUtil.loadSmilDocument(in, mpe);
                 } catch (Exception e) {
                   logger.warn("Unable to load smil document from catalog '{}'", mpe, e);
@@ -1808,7 +1852,12 @@ public class IngestServiceImpl extends AbstractJobProducer implements IngestServ
     }
   }
 
-  /** Create a media inspection job for a mediapackage element. */
+  /**
+   * Create a media inspection job for a mediapackage element.
+   *
+   * @param svc the media inspection service
+   * @return a function
+   */
   public static Function<MediaPackageElement, Job> newEnrichJob(final MediaInspectionService svc) {
     return new Function.X<MediaPackageElement, Job>() {
       @Override
@@ -1820,6 +1869,9 @@ public class IngestServiceImpl extends AbstractJobProducer implements IngestServ
 
   /**
    * Interpret the payload of a completed Job as a MediaPackageElement. Wait for the job to complete if necessary.
+   *
+   * @param reg the service registry
+   * @return a function
    */
   public static Function<Job, Track> payloadAsTrack(final ServiceRegistry reg) {
     return new Function.X<Job, Track>() {

@@ -28,32 +28,24 @@ import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.fail;
 
 import org.opencastproject.index.service.impl.index.event.Event;
-import org.opencastproject.index.service.impl.index.event.Event.SchedulingStatus;
 import org.opencastproject.scheduler.api.RecordingState;
 import org.opencastproject.security.api.DefaultOrganization;
-import org.opencastproject.util.DateTimeSupport;
 
 import org.apache.commons.io.IOUtils;
-import org.codehaus.jettison.json.JSONException;
 import org.json.simple.JSONArray;
 import org.json.simple.JSONObject;
 import org.json.simple.parser.JSONParser;
 import org.json.simple.parser.ParseException;
 import org.junit.Before;
-import org.junit.Ignore;
 import org.junit.Test;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.io.IOException;
 import java.util.ArrayList;
-import java.util.Date;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-
-import javax.xml.bind.JAXBException;
-import javax.xml.stream.XMLStreamException;
 
 import uk.co.datumedge.hamcrest.json.SameJSONAs;
 
@@ -61,8 +53,6 @@ public class EventTest {
   private static final Logger logger = LoggerFactory.getLogger(EventTest.class);
 
   private static final String ENTRY_KEY = "entry";
-  private static final String KEY_KEY = "key";
-  private static final String VALUE_KEY = "value";
   private static final String LOCATION_JSON_KEY = "location";
   private static final String DESCRIPTION_JSON_KEY = "description";
   private static final String CONTRIBUTOR_JSON_KEY = "contributor";
@@ -126,37 +116,6 @@ public class EventTest {
     eventCAConfigJson = IOUtils.toString(getClass().getResource("/adminui_event_metadata_agent_configuration.json"));
   }
 
-  @Ignore
-  @Test
-  public void testValueOf() throws ParseException, IOException, JSONException, XMLStreamException, JAXBException {
-    Event event = Event.valueOf(IOUtils.toInputStream(eventXml), Event.createUnmarshaller());
-    assertEquals(id, event.getIdentifier());
-    assertEquals(title, event.getTitle());
-    assertEquals(description, event.getDescription());
-    assertEquals(subject, event.getSubject());
-    assertEquals(location, event.getLocation());
-    assertEquals(presenter1, event.getPresenters().get(0));
-    assertEquals(presenter2, event.getPresenters().get(1));
-    assertEquals(presenter3, event.getPresenters().get(2));
-    assertEquals(contributor1, event.getContributors().get(0));
-    assertEquals(contributor2, event.getContributors().get(1));
-    assertEquals(contributor3, event.getContributors().get(2));
-  }
-
-  @Ignore
-  @Test
-  public void testValueOfJson() throws ParseException, IOException, JSONException, XMLStreamException, JAXBException {
-    Event event = Event.valueOfJson(IOUtils.toInputStream(eventJson));
-    assertEquals(id, event.getIdentifier());
-    assertEquals(title, event.getTitle());
-    assertEquals(presenter1, event.getPresenters().get(0));
-    assertEquals(presenter2, event.getPresenters().get(1));
-    assertEquals(presenter3, event.getPresenters().get(2));
-    assertEquals(contributor1, event.getContributors().get(0));
-    assertEquals(contributor2, event.getContributors().get(1));
-    assertEquals(contributor3, event.getContributors().get(2));
-  }
-
   @Test
   public void testToJson() throws ParseException, IOException {
     Event event = new Event(id, defaultOrganization);
@@ -203,19 +162,20 @@ public class EventTest {
   @Test
   public void testHasRecordingStarted() {
     Event event = new Event(id, defaultOrganization);
-    assertTrue(event.hasRecordingStarted());
 
-    Date now = new Date();
-
-    event.setSchedulingStatus(SchedulingStatus.READY_FOR_RECORDING.toString());
-    event.setTechnicalStartTime(DateTimeSupport.toUTC(now.getTime() - (3 * 60 * 1000)));
-    event.setRecordingStatus(RecordingState.CAPTURING);
-    assertTrue(event.hasRecordingStarted());
-
-    event.setSchedulingStatus(SchedulingStatus.OPTED_OUT.toString());
-    event.setTechnicalStartTime(DateTimeSupport.toUTC(now.getTime() + (3 * 60 * 1000)));
-    event.setRecordingStatus(null);
+    // This is not a scheduled event so the recording cannot have started
     assertFalse(event.hasRecordingStarted());
+
+    event.setAgentId("test");
+
+    // With a valid capture agent ID, it is a scheduled event, but the recording cannot have started
+    // as we don't have a start time
+    assertFalse(event.hasRecordingStarted());
+
+    event.setRecordingStatus(RecordingState.CAPTURING);
+
+    // The event is a scheduled event and has a valid recording state, so the recording has started
+    assertTrue(event.hasRecordingStarted());
   }
 
 }

@@ -48,8 +48,6 @@ import org.opencastproject.smil.entity.media.param.api.SmilMediaParamGroup;
 
 import org.junit.BeforeClass;
 import org.junit.Test;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 
 import java.net.URI;
 import java.util.List;
@@ -60,14 +58,9 @@ import java.util.List;
 public class SmilServiceImplTest {
 
   /**
-   * Logger
-   */
-  private static final Logger logger = LoggerFactory.getLogger(SmilServiceImplTest.class);
-  /**
    * Test SMIL document
    */
-  private static final String TEST_SMIL = "<!DOCTYPE smil PUBLIC \"-//W3C//DTD SMIL 3.0 Language//EN\" \"http://www.w3.org/2008/SMIL30/SMIL30Language.dtd\">\n"
-          + "<smil xmlns=\"http://www.w3.org/ns/SMIL\" baseProfile=\"Language\" version=\"3.0\" xml:id=\"s-c4af7197-8496-46ae-a80b-bc15ead58c87\">\n"
+  private static final String TEST_SMIL = "<smil xmlns=\"http://www.w3.org/ns/SMIL\" baseProfile=\"Language\" version=\"3.0\" xml:id=\"s-c4af7197-8496-46ae-a80b-bc15ead58c87\">\n"
           + "  <head xml:id=\"h-37abdf0c-95e8-4d39-a574-a71c927e7381\">\n"
           + "    <paramGroup xml:id=\"pg-19fc18d1-e94b-401a-91a7-08f8242642a8\">\n"
           + "      <param value=\"track-1\" name=\"track-id\" valuetype=\"data\" xml:id=\"param-04677935-3868-404c-bf1e-0f0559d718b3\"/>\n"

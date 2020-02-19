@@ -44,7 +44,6 @@ import com.entwinemedia.fn.data.Opt;
 import com.entwinemedia.fn.fns.Strings;
 
 import org.apache.commons.io.output.ByteArrayOutputStream;
-import org.apache.commons.lang3.exception.ExceptionUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -55,8 +54,6 @@ import java.io.StringWriter;
 import java.net.URI;
 import java.util.Properties;
 import java.util.Set;
-import java.util.SortedMap;
-import java.util.TreeMap;
 import java.util.UUID;
 
 /**
@@ -71,17 +68,6 @@ public class ExportWorkflowPropertiesWOH extends AbstractWorkflowOperationHandle
 
   public static final String DEFAULT_TARGET_FLAVOR = MediaPackageElements.PROCESSING_PROPERTIES.toString();
   public static final String EXPORTED_PROPERTIES_FILENAME = "processing-properties.xml";
-
-  /** The configuration options for this handler */
-  public static final SortedMap<String, String> CONFIG_OPTIONS;
-
-  static {
-    CONFIG_OPTIONS = new TreeMap<String, String>();
-    CONFIG_OPTIONS.put(KEYS_PROPERTY,
-            "The workflow property keys that need to be persisted. If the option is not specified, all defined properties should be persisted.");
-    CONFIG_OPTIONS.put(TARGET_FLAVOR_PROPERTY, "The flavor to apply to the exported workflow properties");
-    CONFIG_OPTIONS.put(TARGET_TAGS_PROPERTY, "The tags to apply to the exported workflow properties");
-  }
 
   /** The logging facility */
   private static final Logger logger = LoggerFactory.getLogger(ExportWorkflowPropertiesWOH.class);
@@ -126,14 +112,13 @@ public class ExportWorkflowPropertiesWOH extends AbstractWorkflowOperationHandle
     try (ByteArrayOutputStream out = new ByteArrayOutputStream()) {
       workflowProps.storeToXML(out, null, "UTF-8");
       String elementId = UUID.randomUUID().toString();
-      URI uri = workspace.put(mediaPackage.getIdentifier().compact(), elementId, EXPORTED_PROPERTIES_FILENAME,
+      URI uri = workspace.put(mediaPackage.getIdentifier().toString(), elementId, EXPORTED_PROPERTIES_FILENAME,
               new ByteArrayInputStream(out.toByteArray()));
       MediaPackageElementBuilder builder = MediaPackageElementBuilderFactory.newInstance().newElementBuilder();
       attachment = (Attachment) builder.elementFromURI(uri, Attachment.TYPE, targetFlavor);
       attachment.setMimeType(MimeTypes.XML);
     } catch (IOException e) {
-      logger.error("Unable to store workflow properties as Attachment with flavor '{}': {}", targetFlavorString,
-              ExceptionUtils.getStackTrace(e));
+      logger.error("Unable to store workflow properties as Attachment with flavor '{}':", targetFlavorString, e);
       throw new WorkflowOperationException("Unable to store workflow properties as Attachment", e);
     }
 

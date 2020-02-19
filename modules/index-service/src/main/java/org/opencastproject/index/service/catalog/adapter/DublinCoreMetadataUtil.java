@@ -35,7 +35,6 @@ import org.opencastproject.metadata.dublincore.Precision;
 import com.entwinemedia.fn.data.Opt;
 
 import org.apache.commons.lang3.StringUtils;
-import org.apache.commons.lang3.exception.ExceptionUtils;
 import org.joda.time.DateTime;
 import org.joda.time.DateTimeZone;
 import org.slf4j.Logger;
@@ -78,8 +77,10 @@ public final class DublinCoreMetadataUtil {
         if (field.getType() == MetadataField.Type.START_DATE) {
           setStartDate(dc, field, ename);
         } else if (field.getType() == MetadataField.Type.DURATION) {
+          // WARN: the duration change assumes the catalog's start date is already up to date.
           setDuration(dc, field, ename);
         } else if (field.getType() == Type.DATE) {
+          // Skip over metadata field tagged with key "created".
           // DC created should only be modified by changing the start date, see MH-12250
           if (! DublinCore.PROPERTY_CREATED.equals(ename))
             setDate(dc, field, ename);
@@ -130,6 +131,16 @@ public final class DublinCoreMetadataUtil {
     Opt<DCMIPeriod> p = Opt.<DCMIPeriod> none();
     for (DublinCoreValue periodString : periodStrings) {
       p = Opt.nul(EncodingSchemeUtils.decodePeriod(periodString.getValue()));
+    }
+    if (p.isNone()) {
+      // fall back to created date with zero duration
+      // opencast keep the event start date and created date in sync
+      // if the start date isn't set, we can grab the created value
+      DublinCoreValue createdDCValue = dc.getFirstVal(DublinCore.PROPERTY_CREATED);
+      if (createdDCValue != null) {
+        Date createdDate = EncodingSchemeUtils.decodeDate(createdDCValue.getValue());
+        p = Opt.nul(new DCMIPeriod(createdDate, createdDate));
+      }
     }
     return p;
   }
@@ -202,8 +213,7 @@ public final class DublinCoreMetadataUtil {
       // ensure that DC created is start date, see MH-12250
       setDate(dc, field, DublinCore.PROPERTY_CREATED);
     } catch (ParseException e) {
-      logger.error("Not able to parse date {} to update the dublin core because: {}", field.getValue(),
-              ExceptionUtils.getStackTrace(e));
+      logger.error("Not able to parse date {} to update the dublin core because:", field.getValue(), e);
     }
   }
 
@@ -268,7 +278,7 @@ public final class DublinCoreMetadataUtil {
     if (duration < 1L) {
       duration = getDuration(period);
     }
-    // Get the current start date
+    // Get the current start date (WARN: this assumes any start time updates have already been performed)
     DateTime startDateTime = getCurrentStartDateTime(period);
     // Get the current end date based on new date and duration.
     DateTime endDate = new DateTime(startDateTime.toDate().getTime() + duration);

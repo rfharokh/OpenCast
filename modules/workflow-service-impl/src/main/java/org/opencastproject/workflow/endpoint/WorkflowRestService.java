@@ -23,12 +23,10 @@ package org.opencastproject.workflow.endpoint;
 
 import static javax.servlet.http.HttpServletResponse.SC_BAD_REQUEST;
 import static javax.servlet.http.HttpServletResponse.SC_CONFLICT;
-import static javax.servlet.http.HttpServletResponse.SC_CREATED;
 import static javax.servlet.http.HttpServletResponse.SC_FORBIDDEN;
 import static javax.servlet.http.HttpServletResponse.SC_NOT_FOUND;
 import static javax.servlet.http.HttpServletResponse.SC_NO_CONTENT;
 import static javax.servlet.http.HttpServletResponse.SC_OK;
-import static javax.servlet.http.HttpServletResponse.SC_PRECONDITION_FAILED;
 import static javax.servlet.http.HttpServletResponse.SC_UNAUTHORIZED;
 import static org.opencastproject.util.doc.rest.RestParameter.Type.INTEGER;
 import static org.opencastproject.util.doc.rest.RestParameter.Type.STRING;
@@ -54,7 +52,6 @@ import org.opencastproject.util.doc.rest.RestParameter.Type;
 import org.opencastproject.util.doc.rest.RestQuery;
 import org.opencastproject.util.doc.rest.RestResponse;
 import org.opencastproject.util.doc.rest.RestService;
-import org.opencastproject.workflow.api.Configurable;
 import org.opencastproject.workflow.api.WorkflowDatabaseException;
 import org.opencastproject.workflow.api.WorkflowDefinition;
 import org.opencastproject.workflow.api.WorkflowDefinitionImpl;
@@ -71,6 +68,7 @@ import org.opencastproject.workflow.api.WorkflowQuery;
 import org.opencastproject.workflow.api.WorkflowQuery.Sort;
 import org.opencastproject.workflow.api.WorkflowService;
 import org.opencastproject.workflow.api.WorkflowSet;
+import org.opencastproject.workflow.api.WorkflowStateException;
 import org.opencastproject.workflow.api.WorkflowStatistics;
 import org.opencastproject.workflow.impl.WorkflowServiceImpl;
 import org.opencastproject.workflow.impl.WorkflowServiceImpl.HandlerRegistration;
@@ -86,13 +84,9 @@ import org.osgi.service.component.ComponentContext;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import java.net.URI;
-import java.net.URISyntaxException;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Map.Entry;
-import java.util.Set;
 import java.util.concurrent.locks.Lock;
 
 import javax.servlet.http.HttpServletResponse;
@@ -100,7 +94,6 @@ import javax.ws.rs.DELETE;
 import javax.ws.rs.FormParam;
 import javax.ws.rs.GET;
 import javax.ws.rs.POST;
-import javax.ws.rs.PUT;
 import javax.ws.rs.Path;
 import javax.ws.rs.PathParam;
 import javax.ws.rs.Produces;
@@ -120,7 +113,7 @@ import javax.ws.rs.core.Response.Status;
                 + "not working and is either restarting or has failed",
         "A status code 500 means a general failure has occurred which is not recoverable and was not anticipated. In "
                 + "other words, there is a bug! You should file an error report with your server logs from the time when the "
-                + "error occurred: <a href=\"https://opencast.jira.com\">Opencast Issue Tracker</a>" })
+                + "error occurred: <a href=\"https://github.com/opencast/opencast/issues\">Opencast Issue Tracker</a>" })
 public class WorkflowRestService extends AbstractJobProducerEndpoint {
 
   /** The default number of results returned */
@@ -253,8 +246,9 @@ public class WorkflowRestService extends AbstractJobProducerEndpoint {
   @RestQuery(name = "definitionasjson", description = "Returns a single workflow definition", returnDescription = "Returns a JSON representation of the workflow definition with the specified identifier", pathParameters = { @RestParameter(name = "id", isRequired = true, description = "The workflow definition identifier", type = STRING) }, reponses = {
           @RestResponse(responseCode = SC_OK, description = "The workflow definition."),
           @RestResponse(responseCode = SC_NOT_FOUND, description = "Workflow definition not found.") })
-  public Response getWorkflowDefinitionAsJson(@PathParam("id") String workflowDefinitionId) throws NotFoundException {
-    WorkflowDefinition def = null;
+  public Response getWorkflowDefinitionAsJson(@PathParam("id") String workflowDefinitionId)
+          throws NotFoundException {
+    WorkflowDefinition def;
     try {
       def = service.getWorkflowDefinitionById(workflowDefinitionId);
     } catch (WorkflowDatabaseException e) {
@@ -269,7 +263,8 @@ public class WorkflowRestService extends AbstractJobProducerEndpoint {
   @RestQuery(name = "definitionasxml", description = "Returns a single workflow definition", returnDescription = "Returns an XML representation of the workflow definition with the specified identifier", pathParameters = { @RestParameter(name = "id", isRequired = true, description = "The workflow definition identifier", type = STRING) }, reponses = {
           @RestResponse(responseCode = SC_OK, description = "The workflow definition."),
           @RestResponse(responseCode = SC_NOT_FOUND, description = "Workflow definition not found.") })
-  public Response getWorkflowDefinitionAsXml(@PathParam("id") String workflowDefinitionId) throws NotFoundException {
+  public Response getWorkflowDefinitionAsXml(@PathParam("id") String workflowDefinitionId)
+          throws NotFoundException {
     return getWorkflowDefinitionAsJson(workflowDefinitionId);
   }
 
@@ -283,11 +278,11 @@ public class WorkflowRestService extends AbstractJobProducerEndpoint {
   @Produces(MediaType.TEXT_HTML)
   @Path("configurationPanel")
   @RestQuery(name = "configpanel", description = "Get the configuration panel for a specific workflow", returnDescription = "The HTML workflow configuration panel", restParameters = { @RestParameter(name = "definitionId", isRequired = false, description = "The workflow definition identifier", type = STRING) }, reponses = { @RestResponse(responseCode = SC_OK, description = "The workflow configuration panel.") })
-  public Response getConfigurationPanel(@QueryParam("definitionId") String definitionId) throws NotFoundException {
-    WorkflowDefinition def = null;
+  public Response getConfigurationPanel(@QueryParam("definitionId") String definitionId)
+          throws NotFoundException {
     try {
-      def = service.getWorkflowDefinitionById(definitionId);
-      String out = def.getConfigurationPanel();
+      final WorkflowDefinition def = service.getWorkflowDefinitionById(definitionId);
+      final String out = def.getConfigurationPanel();
       return Response.ok(out).build();
     } catch (WorkflowDatabaseException e) {
       throw new WebApplicationException(Status.INTERNAL_SERVER_ERROR);
@@ -573,12 +568,19 @@ public class WorkflowRestService extends AbstractJobProducerEndpoint {
   @DELETE
   @Path("remove/{id}")
   @Produces(MediaType.TEXT_PLAIN)
-  @RestQuery(name = "remove", description = "Danger! Permenantly removes a workflow instance including all its child jobs. In most circumstances, /stop is what you should use.", returnDescription = "HTTP 204 No Content", pathParameters = { @RestParameter(name = "id", isRequired = true, description = "The workflow instance identifier", type = STRING) }, reponses = {
+  @RestQuery(name = "remove", description = "Danger! Permenantly removes a workflow instance including all its child jobs. In most circumstances, /stop is what you should use.", returnDescription = "HTTP 204 No Content", pathParameters = {
+          @RestParameter(name = "id", isRequired = true, description = "The workflow instance identifier", type = STRING)}, restParameters = {
+          @RestParameter(name = "force", isRequired = false, description = "If the workflow status should be ignored and the workflow removed anyway", type = Type.BOOLEAN, defaultValue = "false")}, reponses = {
           @RestResponse(responseCode = HttpServletResponse.SC_NO_CONTENT, description = "If workflow instance could be removed successfully, no content is returned"),
-          @RestResponse(responseCode = SC_NOT_FOUND, description = "No workflow instance with that identifier exists.") })
-  public Response remove(@PathParam("id") long workflowInstanceId) throws WorkflowException, NotFoundException,
+          @RestResponse(responseCode = SC_NOT_FOUND, description = "No workflow instance with that identifier exists."),
+          @RestResponse(responseCode = SC_FORBIDDEN, description = "It's not allowed to remove other workflow instance statues than STOPPED, SUCCEEDED and FAILED (use force parameter to override AT YOUR OWN RISK).") })
+  public Response remove(@PathParam("id") long workflowInstanceId, @QueryParam("force") boolean force) throws WorkflowException, NotFoundException,
           UnauthorizedException {
-    service.remove(workflowInstanceId);
+    try {
+      service.remove(workflowInstanceId, force);
+    } catch (WorkflowStateException e) {
+      return Response.status(Status.FORBIDDEN).build();
+    }
     return Response.noContent().build();
   }
 
@@ -704,59 +706,20 @@ public class WorkflowRestService extends AbstractJobProducerEndpoint {
       JSONObject jsonHandler = new JSONObject();
       jsonHandler.put("id", handler.getId());
       jsonHandler.put("description", handler.getDescription());
-      JSONObject jsonConfigOptions = new JSONObject();
-      for (Entry<String, String> configEntry : handler.getConfigurationOptions().entrySet()) {
-        jsonConfigOptions.put(configEntry.getKey(), configEntry.getValue());
-      }
-      jsonHandler.put("options", jsonConfigOptions);
       jsonArray.add(jsonHandler);
     }
     return Response.ok(jsonArray.toJSONString()).header("Content-Type", MediaType.APPLICATION_JSON).build();
   }
 
-  @PUT
-  @Path("/definition")
-  @RestQuery(name = "updatedefinition", description = "Updates a workflow definition.", returnDescription = "A location headers containing the URL to the updated workflow definition.", restParameters = { @RestParameter(name = "workflowDefinition", isRequired = true, description = "The XML representation of the updated workflow definition.", type = TEXT) }, reponses = {
-          @RestResponse(responseCode = SC_CREATED, description = "Workflow definition updated."),
-          @RestResponse(responseCode = SC_PRECONDITION_FAILED, description = "Workflow definition already registered.") })
-  public Response registerWorkflowDefinition(@FormParam("workflowDefinition") WorkflowDefinitionImpl workflowDefinition) {
-    if (workflowDefinition == null)
-      return Response.status(Status.BAD_REQUEST).build();
-
-    try {
-      service.getWorkflowDefinitionById(workflowDefinition.getId());
-      return Response.status(Status.PRECONDITION_FAILED).build(); // the workflow definition should be unregistered
-    } catch (NotFoundException notFoundException) {
-      try {
-        service.registerWorkflowDefinition(workflowDefinition);
-        return Response
-                .created(
-                        new URI(UrlSupport.concat(new String[] { serverUrl, "definition",
-                                workflowDefinition.getId() + ".xml" }))).build();
-      } catch (WorkflowDatabaseException e) {
-        return Response.status(Status.INTERNAL_SERVER_ERROR).build();
-      } catch (URISyntaxException e) {
-        throw new IllegalStateException("Unable to generate a URI for workflow definitions", e);
-      }
-    } catch (WorkflowDatabaseException e) {
-      return Response.status(Status.INTERNAL_SERVER_ERROR).build();
-    }
-  }
-
-  @DELETE
-  @Path("/definition/{id}")
-  @RestQuery(name = "deletedefinition", description = "Deletes a workflow definition.", returnDescription = "No content.", pathParameters = { @RestParameter(name = "id", isRequired = true, description = "The workflow definition identifier.", type = STRING) }, reponses = {
-          @RestResponse(responseCode = SC_NO_CONTENT, description = "Workflow definition deleted."),
-          @RestResponse(responseCode = SC_NOT_FOUND, description = "Workflow definition not found.") })
-  public Response unregisterWorkflowDefinition(@PathParam("id") String workflowDefinitionId) throws NotFoundException {
-    try {
-      service.unregisterWorkflowDefinition(workflowDefinitionId);
-      return Response.status(Status.NO_CONTENT).build();
-    } catch (NotFoundException e) {
-      return Response.status(Status.NOT_FOUND).build();
-    } catch (WorkflowDatabaseException e) {
-      return Response.status(Status.INTERNAL_SERVER_ERROR).build();
-    }
+  @GET
+  @Path("statemappings.json")
+  @SuppressWarnings("unchecked")
+  @RestQuery(name = "statemappings", description = "Get all workflow state mappings",
+      returnDescription = "A JSON representation of the workflow state mappings.",
+      reponses = { @RestResponse(responseCode = SC_OK, description = "A JSON representation of the workflow state mappings") })
+  public Response getStateMappings() {
+    return Response.ok(new JSONObject(service.getWorkflowStateMappings()).toJSONString())
+        .header("Content-Type", MediaType.APPLICATION_JSON).build();
   }
 
   @Path("/cleanup")
@@ -787,34 +750,6 @@ public class WorkflowRestService extends AbstractJobProducerEndpoint {
     } catch (WorkflowDatabaseException e) {
       throw new WebApplicationException(e);
     }
-  }
-
-  @SuppressWarnings("unchecked")
-  protected JSONArray getOperationsAsJson(List<WorkflowOperationInstance> operations) {
-    JSONArray jsonArray = new JSONArray();
-    for (WorkflowOperationInstance op : operations) {
-      JSONObject jsOp = new JSONObject();
-      jsOp.put("name", op.getTemplate());
-      jsOp.put("description", op.getDescription());
-      jsOp.put("state", op.getState().name().toLowerCase());
-      jsOp.put("configurations", getConfigsAsJson(op));
-      jsonArray.add(jsOp);
-    }
-    return jsonArray;
-  }
-
-  @SuppressWarnings("unchecked")
-  protected JSONArray getConfigsAsJson(Configurable entity) {
-    JSONArray json = new JSONArray();
-    Set<String> keys = entity.getConfigurationKeys();
-    if (keys != null) {
-      for (String key : keys) {
-        JSONObject jsConfig = new JSONObject();
-        jsConfig.put(key, entity.getConfiguration(key));
-        json.add(jsConfig);
-      }
-    }
-    return json;
   }
 
   /**

@@ -20,7 +20,6 @@
  */
 package org.opencastproject.workflow.handler.assetmanager;
 
-import static java.lang.String.format;
 import static org.opencastproject.assetmanager.api.AssetManager.DEFAULT_OWNER;
 
 import org.opencastproject.assetmanager.api.AssetManager;
@@ -38,9 +37,6 @@ import org.apache.commons.lang3.BooleanUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import java.util.SortedMap;
-import java.util.TreeMap;
-
 /**
  * Workflow operation for deleting an episode from the asset manager.
  *
@@ -54,18 +50,6 @@ public class AssetManagerDeleteWorkflowOperationHandler extends AbstractWorkflow
 
   /** Configuration if last snapshot should not be deleted */
   private static final String OPT_LAST_SNAPSHOT = "keep-last-snapshot";
-
-  /** The configuration options for this handler */
-  private static final SortedMap<String, String> CONFIG_OPTIONS;
-
-  static {
-    CONFIG_OPTIONS = new TreeMap<>();
-  }
-
-  @Override
-  public SortedMap<String, String> getConfigurationOptions() {
-    return CONFIG_OPTIONS;
-  }
 
   /** OSGi DI */
   public void setAssetManager(AssetManager assetManager) {
@@ -95,12 +79,12 @@ public class AssetManagerDeleteWorkflowOperationHandler extends AbstractWorkflow
       }
 
       if (deleted == 0) {
-        logger.info(format("The asset manager does not contain episode {}", mpId));
+        logger.info("The asset manager does not contain episode {}", mpId);
       } else {
-        logger.info(format("Successfully deleted {} version/s episode {} from the asset manager", deleted, mpId));
+        logger.info("Successfully deleted {} version/s episode {} from the asset manager", deleted, mpId);
       }
     } catch (Exception e) {
-      logger.warn(format("Error deleting episode {} from the asset manager: {}", mpId, e));
+      logger.warn("Error deleting episode {} from the asset manager: {}", mpId, e);
       throw new WorkflowOperationException("Unable to delete episode from the asset manager", e);
     }
     return createResult(mediaPackage, Action.CONTINUE);

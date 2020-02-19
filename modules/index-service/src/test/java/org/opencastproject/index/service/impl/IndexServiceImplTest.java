@@ -51,7 +51,6 @@ import org.opencastproject.mediapackage.MediaPackageElementFlavor;
 import org.opencastproject.mediapackage.MediaPackageElements;
 import org.opencastproject.mediapackage.MediaPackageException;
 import org.opencastproject.mediapackage.attachment.AttachmentImpl;
-import org.opencastproject.mediapackage.identifier.HandleException;
 import org.opencastproject.mediapackage.identifier.Id;
 import org.opencastproject.mediapackage.identifier.IdImpl;
 import org.opencastproject.metadata.dublincore.DublinCore;
@@ -165,14 +164,14 @@ public class IndexServiceImplTest {
   }
 
   private IngestService setupIngestServiceWithMediaPackage()
-          throws IngestException, MediaPackageException, HandleException, IOException, NotFoundException {
+          throws IngestException, MediaPackageException, IOException, NotFoundException {
     MediaPackage mediapackage = EasyMock.createNiceMock(MediaPackage.class);
     EasyMock.replay(mediapackage);
     return setupIngestService(mediapackage, Capture.<InputStream> newInstance());
   }
 
   private IngestService setupIngestService(MediaPackage mediapackage, Capture<InputStream> captureInputStream)
-          throws MediaPackageException, HandleException, IOException, IngestException, NotFoundException {
+          throws MediaPackageException, IOException, IngestException, NotFoundException {
     // Setup ingest service.
     WorkflowInstance workflowInstance = EasyMock.createMock(WorkflowInstance.class);
     IngestService ingestService = EasyMock.createMock(IngestService.class);
@@ -248,8 +247,8 @@ public class IndexServiceImplTest {
 
   @Test(expected = IllegalArgumentException.class)
   public void testCreateEventInputNullMetadataExpectsIllegalArgumentException() throws IllegalArgumentException,
-          IndexServiceException, ConfigurationException, MediaPackageException, HandleException, IOException,
-          IngestException, ParseException, NotFoundException, SchedulerException, UnauthorizedException {
+          ConfigurationException, MediaPackageException, IOException, IngestException, ParseException,
+          NotFoundException, SchedulerException, UnauthorizedException {
     IndexServiceImpl indexServiceImpl = new IndexServiceImpl();
     indexServiceImpl.setIngestService(setupIngestServiceWithMediaPackage());
     indexServiceImpl.createEvent(null, null);
@@ -257,9 +256,9 @@ public class IndexServiceImplTest {
 
   @Test(expected = IllegalArgumentException.class)
   public void testCreateEventInputEmptyJsonExpectsIllegalArgumentException()
-          throws IllegalArgumentException, IndexServiceException, ConfigurationException, MediaPackageException,
-          HandleException, IOException, IngestException, ParseException, NotFoundException, SchedulerException,
-          UnauthorizedException, org.json.simple.parser.ParseException {
+          throws IllegalArgumentException, ConfigurationException, MediaPackageException, IOException,
+          IngestException, ParseException, NotFoundException, SchedulerException, UnauthorizedException,
+          org.json.simple.parser.ParseException {
     JSONObject metadataJson = (JSONObject) parser.parse("{}");
 
     IndexServiceImpl indexServiceImpl = new IndexServiceImpl();
@@ -269,9 +268,9 @@ public class IndexServiceImplTest {
 
   @Test(expected = IllegalArgumentException.class)
   public void testCreateEventInputNoSourceExpectsIllegalArgumentException()
-          throws IllegalArgumentException, IndexServiceException, ConfigurationException, MediaPackageException,
-          HandleException, IOException, IngestException, ParseException, NotFoundException, SchedulerException,
-          UnauthorizedException, org.json.simple.parser.ParseException {
+          throws IllegalArgumentException, ConfigurationException, MediaPackageException, IOException,
+          IngestException, ParseException, NotFoundException, SchedulerException, UnauthorizedException,
+          org.json.simple.parser.ParseException {
     String testResourceLocation = "/events/create-event-no-source.json";
     JSONObject metadataJson = (JSONObject) parser
             .parse(IOUtils.toString(IndexServiceImplTest.class.getResourceAsStream(testResourceLocation)));
@@ -283,9 +282,9 @@ public class IndexServiceImplTest {
 
   @Test(expected = IllegalArgumentException.class)
   public void testCreateEventInputNoProcessingExpectsIllegalArgumentException()
-          throws IllegalArgumentException, IndexServiceException, ConfigurationException, MediaPackageException,
-          HandleException, IOException, IngestException, ParseException, NotFoundException, SchedulerException,
-          UnauthorizedException, org.json.simple.parser.ParseException {
+          throws IllegalArgumentException, ConfigurationException, MediaPackageException, IOException,
+          IngestException, ParseException, NotFoundException, SchedulerException, UnauthorizedException,
+          org.json.simple.parser.ParseException {
     String testResourceLocation = "/events/create-event-no-processing.json";
     JSONObject metadataJson = (JSONObject) parser
             .parse(IOUtils.toString(IndexServiceImplTest.class.getResourceAsStream(testResourceLocation)));
@@ -297,9 +296,9 @@ public class IndexServiceImplTest {
 
   @Test(expected = IllegalArgumentException.class)
   public void testCreateEventInputNoWorkflowExpectsIllegalArgumentException()
-          throws IllegalArgumentException, IndexServiceException, ConfigurationException, MediaPackageException,
-          HandleException, IOException, IngestException, ParseException, NotFoundException, SchedulerException,
-          UnauthorizedException, org.json.simple.parser.ParseException {
+          throws IllegalArgumentException, ConfigurationException, MediaPackageException, IOException,
+          IngestException, ParseException, NotFoundException, SchedulerException, UnauthorizedException,
+          org.json.simple.parser.ParseException {
     String testResourceLocation = "/events/create-event-no-workflow.json";
     JSONObject metadataJson = (JSONObject) parser
             .parse(IOUtils.toString(IndexServiceImplTest.class.getResourceAsStream(testResourceLocation)));
@@ -311,9 +310,9 @@ public class IndexServiceImplTest {
 
   @Test(expected = IllegalArgumentException.class)
   public void testCreateEventInputNoMetadataExpectsIllegalArgumentException()
-          throws IllegalArgumentException, IndexServiceException, ConfigurationException, MediaPackageException,
-          HandleException, IOException, IngestException, ParseException, NotFoundException, SchedulerException,
-          UnauthorizedException, org.json.simple.parser.ParseException {
+          throws IllegalArgumentException, ConfigurationException, MediaPackageException, IOException,
+          IngestException, ParseException, NotFoundException, SchedulerException, UnauthorizedException,
+          org.json.simple.parser.ParseException {
     String testResourceLocation = "/events/create-event-no-metadata.json";
     JSONObject metadataJson = (JSONObject) parser
             .parse(IOUtils.toString(IndexServiceImplTest.class.getResourceAsStream(testResourceLocation)));
@@ -556,7 +555,7 @@ public class IndexServiceImplTest {
     schedulerService.addEvent(EasyMock.capture(captureStart), EasyMock.capture(captureEnd), EasyMock.anyString(),
             EasyMock.<Set<String>> anyObject(), EasyMock.anyObject(MediaPackage.class),
             EasyMock.<Map<String, String>> anyObject(), EasyMock.<Map<String, String>> anyObject(),
-            EasyMock.<Opt<Boolean>> anyObject(), EasyMock.<Opt<String>> anyObject());
+            EasyMock.<Opt<String>> anyObject());
     EasyMock.expectLastCall().once();
     EasyMock.replay(schedulerService);
 
@@ -572,7 +571,7 @@ public class IndexServiceImplTest {
     indexServiceImpl.setCaptureAgentStateService(captureAgentStateService);
     indexServiceImpl.setSchedulerService(schedulerService);
     String scheduledEvent = indexServiceImpl.createEvent(metadataJson, mediapackage);
-    Assert.assertEquals(mediapackage.getIdentifier().compact(), scheduledEvent);
+    Assert.assertEquals(mediapackage.getIdentifier().toString(), scheduledEvent);
 
     assertTrue("The catalog must be added to the mediapackage", result.hasCaptured());
     assertEquals("The catalog should have been added to the correct mediapackage", mpId.toString(),
@@ -605,7 +604,8 @@ public class IndexServiceImplTest {
   }
 
   @Test
-  public void testAddAssetsToMp() throws org.json.simple.parser.ParseException, IOException, ConfigurationException, MediaPackageException, HandleException, IngestException, NotFoundException {
+  public void testAddAssetsToMp() throws org.json.simple.parser.ParseException, IOException, ConfigurationException,
+          MediaPackageException, IngestException, NotFoundException {
     MediaPackage mediapackage = MediaPackageBuilderFactory.newInstance().newMediaPackageBuilder().createNew();
     JSONArray assetMetadata =  (JSONArray) new JSONParser().parse("[{\"id\":\"attachment_attachment_notes\", "
       + "\"title\": \"class handout notes\","
@@ -688,12 +688,6 @@ public class IndexServiceImplTest {
     CaptureAgentStateService captureAgentStateService = setupCaptureAgentStateService();
 
     // Setup scheduler service
-    Capture<Date> recurrenceStart = EasyMock.newCapture();
-    Capture<Date> recurrenceEnd = EasyMock.newCapture();
-    Capture<RRule> rrule = EasyMock.newCapture();
-    Capture duration = EasyMock.newCapture();
-    Capture<TimeZone> tz = EasyMock.newCapture();
-
     Capture<Date> schedStart = EasyMock.newCapture();
     Capture<Date> schedEnd = EasyMock.newCapture();
     Capture<RRule> schedRRule = EasyMock.newCapture();
@@ -702,24 +696,13 @@ public class IndexServiceImplTest {
 
     Capture<MediaPackage> mp = EasyMock.newCapture();
     SchedulerService schedulerService = EasyMock.createNiceMock(SchedulerService.class);
-    //Look up the expected periods
-    EasyMock.expect(
-            schedulerService.calculatePeriods(EasyMock.capture(rrule), EasyMock.capture(recurrenceStart),
-                    EasyMock.capture(recurrenceEnd), EasyMock.captureLong(duration), EasyMock.capture(tz))).
-            andAnswer(new IAnswer<List<Period>>() {
-              @Override
-              public List<Period> answer() throws Throwable {
-                return calculatePeriods(rrule.getValue(), recurrenceStart.getValue(), recurrenceEnd.getValue(), (Long) duration.getValue(), tz.getValue());
-              }
-            }).anyTimes();
     //The actual scheduling
     EasyMock.expect(
     schedulerService.addMultipleEvents(
             EasyMock.capture(schedRRule), EasyMock.capture(schedStart), EasyMock.capture(schedEnd),
             EasyMock.captureLong(schedDuration), EasyMock.capture(schedTz), EasyMock.anyString(),
             EasyMock.<Set<String>>anyObject(), EasyMock.capture(mp), EasyMock.<Map<String, String>>anyObject(),
-            EasyMock.<Map<String, String>>anyObject(), EasyMock.<Opt<Boolean>>anyObject(),
-            EasyMock.<Opt<String>>anyObject())).
+            EasyMock.<Map<String, String>>anyObject(), EasyMock.<Opt<String>>anyObject())).
             andAnswer(new IAnswer<Map<String, Period>>() {
               @Override
               public Map<String, Period> answer() throws Throwable {
@@ -727,7 +710,7 @@ public class IndexServiceImplTest {
                 Map<String, Period> mapping = new LinkedHashMap<>();
                 int counter = 0;
                 for (Period p : periods) {
-                  mapping.put(new IdImpl(UUID.randomUUID().toString()).compact(), p);
+                  mapping.put(new IdImpl(UUID.randomUUID().toString()).toString(), p);
                 }
                 return mapping;
               }
@@ -748,7 +731,7 @@ public class IndexServiceImplTest {
     String scheduledEvents = indexServiceImpl.createEvent(metadataJson, mediapackage);
     String[] ids = StringUtils.split(scheduledEvents, ",");
     //We should have as many scheduled events as we do periods
-    Assert.assertTrue(ids.length == calculatePeriods(rrule.getValue(), recurrenceStart.getValue(), recurrenceEnd.getValue(), (Long) duration.getValue(), tz.getValue()).size());
+    Assert.assertTrue(ids.length == calculatePeriods(schedRRule.getValue(), schedStart.getValue(), schedEnd.getValue(), (Long) schedDuration.getValue(), schedTz.getValue()).size());
 
     assertEquals("The catalog should have been added to the correct mediapackage", mpId.toString(),
             mediapackageIdResult.getValue());
@@ -758,25 +741,12 @@ public class IndexServiceImplTest {
     assertTrue("The mediapackage should have had its title updated", catalogResult.hasCaptured());
     assertEquals("The mediapackage title should have been updated.", expectedTitle, mediapackageTitleResult.getValue());
     assertTrue("The catalog should have been created", catalogResult.hasCaptured());
-    //Assert that the start and end recurrence dates captured, along with the duration and recurrence rule
-    //This is all used by the scheduling calculation, but not the actual scheduling call
-    assertTrue(recurrenceStart.hasCaptured());
-    assertTrue(recurrenceEnd.hasCaptured());
-    assertTrue(duration.hasCaptured());
-    assertTrue(rrule.hasCaptured());
     //Assert that the scheduling call has its necessary data
     assertTrue(schedStart.hasCaptured());
     assertTrue(schedEnd.hasCaptured());
     assertTrue(schedDuration.hasCaptured());
     assertTrue(schedRRule.hasCaptured());
     assertTrue(schedTz.hasCaptured());
-    List<Period> pCheck = calculatePeriods(schedRRule.getValue(), schedStart.getValue(), schedEnd.getValue(), (Long) schedDuration.getValue(), schedTz.getValue());
-    List<Period> pExpected = calculatePeriods(rrule.getValue(), recurrenceStart.getValue(), recurrenceEnd.getValue(), (Long) duration.getValue(), tz.getValue());
-
-    //Assert that the first capture time is the same as the recurrence start
-    assertEquals(pExpected.get(0).getStart(), pCheck.get(0).getStart());
-    //Assert that the end of the last capture time is the same as the recurrence end
-    assertEquals(pExpected.get(pExpected.size() - 1).getEnd(), pCheck.get(pCheck.size() - 1).getEnd());
   }
 
   /**
@@ -861,8 +831,7 @@ public class IndexServiceImplTest {
     Capture<Opt<MediaPackage>> mpCapture = Capture.newInstance();
     schedulerService.updateEvent(EasyMock.anyString(), EasyMock.anyObject(Opt.class),
             EasyMock.anyObject(Opt.class), EasyMock.anyObject(Opt.class), EasyMock.anyObject(Opt.class),
-            EasyMock.capture(mpCapture),
-            EasyMock.anyObject(Opt.class), EasyMock.anyObject(Opt.class), EasyMock.anyObject(Opt.class));
+            EasyMock.capture(mpCapture), EasyMock.anyObject(Opt.class), EasyMock.anyObject(Opt.class));
     EasyMock.expectLastCall();
     EasyMock.replay(schedulerService);
     SeriesService seriesService = EasyMock.createMock(SeriesService.class);

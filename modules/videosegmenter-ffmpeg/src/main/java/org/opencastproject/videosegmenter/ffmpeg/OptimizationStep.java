@@ -34,7 +34,6 @@ import java.util.LinkedList;
  */
 public class OptimizationStep implements Comparable<OptimizationStep> {
 
-  private int stabilityThreshold;
   private float changesThreshold;
   private float error;
   private float errorAbs;
@@ -46,16 +45,14 @@ public class OptimizationStep implements Comparable<OptimizationStep> {
   /**
    * creates a new optimization step with given parameters
    *
-   * @param stabilityThreshold
    * @param changesThreshold
    * @param segNum
    * @param prefNum
    * @param mpeg7
    * @param segments unfiltered list of segments
    */
-  public OptimizationStep(int stabilityThreshold, float changesThreshold, int segNum, int prefNum, Mpeg7Catalog mpeg7,
+  public OptimizationStep(float changesThreshold, int segNum, int prefNum, Mpeg7Catalog mpeg7,
           LinkedList<Segment> segments) {
-    this.stabilityThreshold = stabilityThreshold;
     this.changesThreshold = changesThreshold;
     this.segmentNum = segNum;
     this.prefNum = prefNum;
@@ -68,7 +65,6 @@ public class OptimizationStep implements Comparable<OptimizationStep> {
    *  creates a new optimization step with default values
    */
   public OptimizationStep() {
-    stabilityThreshold = 0;
     changesThreshold = 0.0f;
     segmentNum = 1;
     prefNum = 1;
@@ -147,18 +143,6 @@ public class OptimizationStep implements Comparable<OptimizationStep> {
    */
   public LinkedList<Segment> getSegments() {
     return segments;
-  }
-
-  /**
-   * calculates error from given number of segments and preferred number of
-   * segments
-   *
-   * @param segmentNum number of segments
-   * @param prefNum preferred number of segments
-   * @return
-   */
-  public static float calculateError(int segmentNum, int prefNum) {
-    return (float)(segmentNum - prefNum) / (float)prefNum;
   }
 
   /**

@@ -37,7 +37,6 @@ import org.opencastproject.workflow.api.WorkflowOperationResult.Action;
 import org.apache.commons.lang3.StringUtils;
 import org.apache.http.HttpResponse;
 import org.apache.http.client.ClientProtocolException;
-import org.apache.http.client.HttpClient;
 import org.apache.http.client.config.RequestConfig;
 import org.apache.http.client.entity.UrlEncodedFormEntity;
 import org.apache.http.client.methods.HttpEntityEnclosingRequestBase;
@@ -54,8 +53,6 @@ import java.io.IOException;
 import java.io.UnsupportedEncodingException;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.SortedMap;
-import java.util.TreeMap;
 
 /**
  * Workflow operation handler that will send HTTP POST or PUT requests to a specified address.
@@ -95,19 +92,6 @@ public class HttpNotificationWorkflowOperationHandler extends AbstractWorkflowOp
   /** Name of the workflow instance id HTTP parameter */
   public static final String HTTP_PARAM_WORKFLOW = "workflowInstanceId";
 
-  /** The configuration options for this handler */
-  private static final SortedMap<String, String> CONFIG_OPTIONS;
-
-  static {
-    CONFIG_OPTIONS = new TreeMap<>();
-    CONFIG_OPTIONS.put(OPT_URL_PATH, "Notification request target");
-    CONFIG_OPTIONS.put(OPT_NOTIFICATION_SUBJECT, "Notification title");
-    CONFIG_OPTIONS.put(OPT_NOTIFICATION_MESSAGE, "Notification");
-    CONFIG_OPTIONS.put(OPT_METHOD, "HTTP Method");
-    CONFIG_OPTIONS.put(OPT_MAX_RETRY, "Maximum attempts for the notification request");
-    CONFIG_OPTIONS.put(OPT_TIMEOUT, "Request timeout");
-  }
-
   /** The logging facility */
   private static final Logger logger = LoggerFactory.getLogger(HttpNotificationWorkflowOperationHandler.class);
 
@@ -122,9 +106,6 @@ public class HttpNotificationWorkflowOperationHandler extends AbstractWorkflowOp
 
   /** The scale factor to the sleep time between two notification attempts */
   public static final int SLEEP_SCALE_FACTOR = 2;
-
-  /** The http client to use when connecting to remote servers */
-  protected HttpClient client = null;
 
   /**
    * {@inheritDoc}
@@ -214,7 +195,7 @@ public class HttpNotificationWorkflowOperationHandler extends AbstractWorkflowOp
    */
   private boolean executeRequest(HttpUriRequest request, int maxAttempts, int timeout, int sleepTime) {
 
-    logger.debug(format("Executing notification request on target %s, %d attemps left", request.getURI(), maxAttempts));
+    logger.debug("Executing notification request on target {}, {} attempts left", request.getURI(), maxAttempts);
 
     RequestConfig config = RequestConfig.custom()
             .setConnectTimeout(timeout)
@@ -235,11 +216,11 @@ public class HttpNotificationWorkflowOperationHandler extends AbstractWorkflowOp
 
     Integer statusCode = response.getStatusLine().getStatusCode();
     if (statusCode == SC_OK || statusCode == SC_NO_CONTENT || statusCode == SC_ACCEPTED) {
-      logger.debug(format("Request successfully executed on target %s, status code: %d", request.getURI(), statusCode));
+      logger.debug("Request successfully executed on target {}, status code: {}", request.getURI(), statusCode);
       return true;
     } else if (maxAttempts > 1) {
-      logger.debug(format("Request failed on target %s, status code: %d, will retry in %d seconds", request.getURI(),
-              statusCode, sleepTime / 1000));
+      logger.debug("Request failed on target {}, status code: {}, will retry in {} seconds", request.getURI(),
+              statusCode, sleepTime / 1000);
       try {
         Thread.sleep(sleepTime);
         return executeRequest(request, --maxAttempts, timeout, sleepTime * SLEEP_SCALE_FACTOR);

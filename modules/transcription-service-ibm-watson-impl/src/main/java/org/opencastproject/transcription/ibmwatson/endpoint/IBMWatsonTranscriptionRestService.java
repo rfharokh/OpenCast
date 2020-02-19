@@ -103,7 +103,7 @@ public class IBMWatsonTranscriptionRestService extends AbstractJobProducerEndpoi
     Enumeration en = request.getHeaderNames();
     while (en.hasMoreElements()) {
       String name = (String) en.nextElement();
-      logger.debug(String.format("==== %s: %s", name, request.getHeader(name)));
+      logger.debug("==== {}: {}", name, request.getHeader(name));
     }
     // return Response.ok(challengeString).build();
     return Response.ok(challengeString).type(MediaType.TEXT_PLAIN).build();
@@ -144,7 +144,7 @@ public class IBMWatsonTranscriptionRestService extends AbstractJobProducerEndpoi
               jsonObj == null ? jsonObj : jsonObj.toJSONString());
       return Response.status(HttpServletResponse.SC_INTERNAL_SERVER_ERROR).entity(e.getMessage()).build();
     } catch (Exception e) {
-      logger.warn(e.getMessage());
+      logger.warn("Error handling notification results: {}", e.getMessage());
       return Response.status(HttpServletResponse.SC_INTERNAL_SERVER_ERROR).entity(e.getMessage()).build();
     }
   }

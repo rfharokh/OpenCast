@@ -133,11 +133,9 @@ public final class SeriesIndexUtils {
     }
 
     if (StringUtils.trimToNull(series.getAccessPolicy()) != null) {
-      metadata.addField(SeriesIndexSchema.ACCESS_POLICY, series.getAccessPolicy(), true);
+      metadata.addField(SeriesIndexSchema.ACCESS_POLICY, series.getAccessPolicy(), false);
       addAuthorization(metadata, series.getAccessPolicy());
     }
-
-    metadata.addField(SeriesIndexSchema.OPT_OUT, series.isOptedOut(), false);
 
     if (series.getTheme() != null) {
       metadata.addField(SeriesIndexSchema.THEME, series.getTheme(), false);

@@ -60,6 +60,7 @@ import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.Date;
 import java.util.List;
+import java.util.Objects;
 import java.util.Optional;
 import java.util.TimeZone;
 
@@ -256,10 +257,13 @@ public final class SchedulingUtils {
       final SchedulingInfo schedulingInfo = new SchedulingInfo();
       final String startDate = (String) json.get(JSON_KEY_START_DATE);
       final String endDate = (String) json.get(JSON_KEY_END_DATE);
-      final String durationString = (String) json.get(JSON_KEY_DURATION);
       final String agentId = (String) json.get(JSON_KEY_AGENT_ID);
       final JSONArray inputs = (JSONArray) json.get(JSON_KEY_INPUTS);
       final String rrule = (String) json.get(JSON_KEY_RRULE);
+
+      // Special handling because the original implementation required String but now we require long
+      final String durationString = Objects.toString(json.get(JSON_KEY_DURATION), null);
+
       if (isNotBlank(startDate)) {
         schedulingInfo.startDate = Opt.some(Date.from(Instant.from(dateFormatter.parse(startDate))));
       }
@@ -291,6 +295,9 @@ public final class SchedulingUtils {
           schedulingInfo.rrule = Opt.some(parsedRrule);
         } catch (Exception e) {
           throw new IllegalArgumentException("Invalid RRule: " + rrule);
+        }
+        if (isBlank(durationString) || isBlank(startDate) || isBlank(endDate)) {
+          throw new IllegalArgumentException("'start', 'end' and 'duration' must be specified when 'rrule' is specified");
         }
       }
       return schedulingInfo;
@@ -355,7 +362,7 @@ public final class SchedulingUtils {
   ) throws SearchIndexException {
     final List<JValue> result = new ArrayList<>();
     for (MediaPackage mediaPackage : mediaPackages) {
-      final Opt<Event> eventOpt = indexService.getEvent(mediaPackage.getIdentifier().compact(), externalIndex);
+      final Opt<Event> eventOpt = indexService.getEvent(mediaPackage.getIdentifier().toString(), externalIndex);
       if (eventOpt.isSome()) {
         final Event event = eventOpt.get();
         if (checkedEventId.isPresent() && checkedEventId.equals(event.getIdentifier())) {
@@ -365,7 +372,7 @@ public final class SchedulingUtils {
             f("title", v(event.getTitle()))));
       } else {
         logger.warn("Index out of sync! Conflicting event catalog {} not found on event index!",
-            mediaPackage.getIdentifier().compact());
+            mediaPackage.getIdentifier().toString());
       }
     }
     return result;

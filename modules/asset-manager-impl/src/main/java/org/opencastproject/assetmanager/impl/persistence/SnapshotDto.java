@@ -27,12 +27,14 @@ import org.opencastproject.assetmanager.api.Snapshot;
 import org.opencastproject.assetmanager.impl.SnapshotImpl;
 import org.opencastproject.assetmanager.impl.VersionImpl;
 import org.opencastproject.mediapackage.MediaPackage;
+import org.opencastproject.mediapackage.MediaPackageElement;
 import org.opencastproject.mediapackage.MediaPackageParser;
 
 import org.eclipse.persistence.annotations.CascadeOnDelete;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import java.util.Arrays;
 import java.util.Date;
 import java.util.Set;
 
@@ -61,7 +63,9 @@ import javax.persistence.UniqueConstraint;
         uniqueConstraints = {@UniqueConstraint(columnNames = {"mediapackage_id", "version"})})
 @NamedQueries({
         @NamedQuery(name = "Snapshot.countByMediaPackage", query = "select count(s) from Snapshot s "
-                + "where s.mediaPackageId = :mediaPackageId")})
+                + "where s.mediaPackageId = :mediaPackageId"),
+        @NamedQuery(name = "Snapshot.countByMediaPackageAndOrg", query = "select count(s) from Snapshot s "
+                + "where s.mediaPackageId = :mediaPackageId and s.organizationId = :organizationId")})
 // Maintain own generator to support database migrations from Archive to AssetManager
 // The generator's initial value has to be set after the data migration.
 // Otherwise duplicate key errors will most likely happen.
@@ -179,6 +183,14 @@ public class SnapshotDto {
   }
 
   public Snapshot toSnapshot() {
+    MediaPackage mediaPackage = Conversions.toMediaPackage(mediaPackageXml);
+    // ensure elements are tagged `archive`
+    for (MediaPackageElement element: mediaPackage.getElements()) {
+      if (!Arrays.asList(element.getTags()).contains("archive")) {
+        logger.debug("Adding additional tag `archive` to element {} retrieved from asset manager", element);
+        element.addTag("archive");
+      }
+    }
     return new SnapshotImpl(
             id,
             Conversions.toVersion(version),
@@ -187,7 +199,7 @@ public class SnapshotDto {
             Availability.valueOf(availability),
             storageId,
             owner,
-            Conversions.toMediaPackage(mediaPackageXml));
+            mediaPackage);
   }
 
   /**
@@ -200,8 +212,30 @@ public class SnapshotDto {
    * @return If a snapshot exists for the given media package
    */
   public static boolean exists(EntityManager em, final String mediaPackageId) {
-    TypedQuery<Long> query = em.createNamedQuery("Snapshot.countByMediaPackage", Long.class)
-            .setParameter("mediaPackageId", mediaPackageId);
+    return exists(em, mediaPackageId, null);
+  }
+
+  /**
+   * Check if any snapshot with the given media package exists.
+   *
+   * @param em
+   *          An entity manager to sue
+   * @param mediaPackageId
+   *          The media package identifier to check for
+   * @param organization
+   *          An organization to limit the check for
+   * @return If a snapshot exists for the given media package
+   */
+  public static boolean exists(EntityManager em, final String mediaPackageId, final String organization) {
+    TypedQuery<Long> query;
+    if (organization == null) {
+      query = em.createNamedQuery("Snapshot.countByMediaPackage", Long.class)
+              .setParameter("mediaPackageId", mediaPackageId);
+    } else {
+      query = em.createNamedQuery("Snapshot.countByMediaPackageAndOrg", Long.class)
+              .setParameter("mediaPackageId", mediaPackageId)
+              .setParameter("organizationId", organization);
+    }
     logger.debug("Executing query {}", query);
     return query.getSingleResult() > 0;
   }

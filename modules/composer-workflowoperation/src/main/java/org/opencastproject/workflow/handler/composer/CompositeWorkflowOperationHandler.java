@@ -63,7 +63,6 @@ import org.opencastproject.workspace.api.Workspace;
 import org.apache.commons.io.FilenameUtils;
 import org.apache.commons.io.IOUtils;
 import org.apache.commons.lang3.StringUtils;
-import org.apache.commons.lang3.exception.ExceptionUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -75,8 +74,6 @@ import java.net.URI;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
-import java.util.SortedMap;
-import java.util.TreeMap;
 import java.util.UUID;
 import java.util.regex.Pattern;
 
@@ -114,41 +111,9 @@ public class CompositeWorkflowOperationHandler extends AbstractWorkflowOperation
   /** The logging facility */
   private static final Logger logger = LoggerFactory.getLogger(CompositeWorkflowOperationHandler.class);
 
-  /** The configuration options for this handler */
-  private static final SortedMap<String, String> CONFIG_OPTIONS;
-
   /** The legal options for SOURCE_AUDIO_NAME */
   private static final Pattern sourceAudioOption = Pattern.compile(
           ComposerService.LOWER + "|" + ComposerService.UPPER + "|" + ComposerService.BOTH, Pattern.CASE_INSENSITIVE);
-
-  static {
-    CONFIG_OPTIONS = new TreeMap<String, String>();
-    CONFIG_OPTIONS.put(SOURCE_AUDIO_NAME, "Only \"upper\", \"lower\" or \"both\" track to be used as source audio");
-    CONFIG_OPTIONS.put(SOURCE_TAGS_UPPER, "The \"tag\" of the upper track to use as a source input");
-    CONFIG_OPTIONS.put(SOURCE_FLAVOR_UPPER, "The \"flavor\" of the upper track to use as a source input");
-    CONFIG_OPTIONS.put(SOURCE_TAGS_LOWER, "The \"tag\" of the lower track to use as a source input");
-    CONFIG_OPTIONS.put(SOURCE_FLAVOR_LOWER, "The \"flavor\" of the lower track to use as a source input");
-    CONFIG_OPTIONS.put(SOURCE_TAGS_WATERMARK, "The \"tag\" of the attachement image to use as a source input");
-    CONFIG_OPTIONS.put(SOURCE_FLAVOR_WATERMARK, "The \"flavor\" of the attachement image to use as a source input");
-    CONFIG_OPTIONS.put(SOURCE_URL_WATERMARK, "The \"URL\" of the fallback image to use as a source input");
-
-    CONFIG_OPTIONS.put(ENCODING_PROFILE, "The encoding profile to use");
-
-    CONFIG_OPTIONS.put(TARGET_TAGS, "The tags to apply to the compound video track");
-    CONFIG_OPTIONS.put(TARGET_FLAVOR, "The flavor to apply to the compound video track");
-
-    CONFIG_OPTIONS
-            .put(LAYOUT_MULTIPLE,
-                    "The layout name to use or a semi-colon separated JSON layout definition (lower, upper, optional watermark) if there are multiple videos");
-    CONFIG_OPTIONS
-            .put(LAYOUT_SINGLE,
-                    "The layout name to use or a semi-colon separated JSON layout definition (video, optional watermark) if there is a single video source");
-    CONFIG_OPTIONS.put(LAYOUT_PREFIX,
-            "Define semi-colon separated JSON layouts (lower, upper, optional watermark) to provide by name");
-
-    CONFIG_OPTIONS.put(OUTPUT_RESOLUTION, "The resulting resolution of the compound video e.g. 1900x1080");
-    CONFIG_OPTIONS.put(OUTPUT_BACKGROUND, "The resulting background color of the compound video e.g. black");
-  }
 
   /** The composer service */
   private ComposerService composerService = null;
@@ -180,16 +145,6 @@ public class CompositeWorkflowOperationHandler extends AbstractWorkflowOperation
   /**
    * {@inheritDoc}
    *
-   * @see org.opencastproject.workflow.api.WorkflowOperationHandler#getConfigurationOptions()
-   */
-  @Override
-  public SortedMap<String, String> getConfigurationOptions() {
-    return CONFIG_OPTIONS;
-  }
-
-  /**
-   * {@inheritDoc}
-   *
    * @see org.opencastproject.workflow.api.WorkflowOperationHandler#start(org.opencastproject.workflow.api.WorkflowInstance,
    *      JobContext)
    */
@@ -210,9 +165,9 @@ public class CompositeWorkflowOperationHandler extends AbstractWorkflowOperation
     MediaPackage mediaPackage = (MediaPackage) src.clone();
     CompositeSettings compositeSettings;
     try {
-      compositeSettings = new CompositeSettings(mediaPackage, operation);
+      compositeSettings = new CompositeSettings(operation);
     } catch (IllegalArgumentException e) {
-      logger.warn("Unable to parse composite settings because {}", ExceptionUtils.getStackTrace(e));
+      logger.warn("Unable to parse composite settings because", e);
       return createResult(mediaPackage, Action.SKIP);
     }
     Option<Attachment> watermarkAttachment = Option.<Attachment> none();
@@ -262,7 +217,7 @@ public class CompositeWorkflowOperationHandler extends AbstractWorkflowOperation
         compositeSettings.setSingleTrack(t);
       for (Track t : lowerElements)
         compositeSettings.setSingleTrack(t);
-      return handleSingleTrack(mediaPackage, operation, compositeSettings, watermarkAttachment);
+      return handleSingleTrack(mediaPackage, compositeSettings, watermarkAttachment);
     } else {
       // Look for upper elements matching the tags and flavor
       if (upperElements.size() > 1) {
@@ -292,7 +247,7 @@ public class CompositeWorkflowOperationHandler extends AbstractWorkflowOperation
         compositeSettings.setLowerTrack(t);
       }
 
-      return handleMultipleTracks(mediaPackage, operation, compositeSettings, watermarkAttachment);
+      return handleMultipleTracks(mediaPackage, compositeSettings, watermarkAttachment);
     }
   }
 
@@ -350,10 +305,15 @@ public class CompositeWorkflowOperationHandler extends AbstractWorkflowOperation
 
     private MediaPackageElementFlavor targetFlavor = null;
 
-    CompositeSettings(MediaPackage mediaPackage, WorkflowOperationInstance operation)
-            throws WorkflowOperationException {
+    CompositeSettings(WorkflowOperationInstance operation) throws WorkflowOperationException {
       // Check which tags have been configured
       sourceAudioName = StringUtils.trimToNull(operation.getConfiguration(SOURCE_AUDIO_NAME));
+      if (sourceAudioName == null) {
+        sourceAudioName = ComposerService.BOTH; // default
+      } else if (!sourceAudioOption.matcher(sourceAudioName).matches()) {
+        throw new WorkflowOperationException("sourceAudioName if used, must be either upper, lower or both!");
+      }
+
       sourceTagsUpper = StringUtils.trimToNull(operation.getConfiguration(SOURCE_TAGS_UPPER));
       sourceFlavorUpper = StringUtils.trimToNull(operation.getConfiguration(SOURCE_FLAVOR_UPPER));
       sourceTagsLower = StringUtils.trimToNull(operation.getConfiguration(SOURCE_TAGS_LOWER));
@@ -397,10 +357,6 @@ public class CompositeWorkflowOperationHandler extends AbstractWorkflowOperation
         singleSourceLayout = singleLayouts.getA();
         watermarkLayout = singleLayouts.getB();
       }
-
-      // Check that source audio is upper, lower or use a combination of both
-      if (sourceAudioName != null && !sourceAudioOption.matcher(sourceAudioName).matches())
-        throw new WorkflowOperationException("sourceAudioName if used, must be either upper, lower or both!");
 
       // Find the encoding profile
       if (encodingProfile == null)
@@ -628,7 +584,7 @@ public class CompositeWorkflowOperationHandler extends AbstractWorkflowOperation
     }
   }
 
-  private WorkflowOperationResult handleSingleTrack(MediaPackage mediaPackage, WorkflowOperationInstance operation,
+  private WorkflowOperationResult handleSingleTrack(MediaPackage mediaPackage,
           CompositeSettings compositeSettings, Option<Attachment> watermarkAttachment) throws EncoderException,
           IOException, NotFoundException, MediaPackageException, WorkflowOperationException {
 
@@ -742,7 +698,7 @@ public class CompositeWorkflowOperationHandler extends AbstractWorkflowOperation
     return watermarkOption;
   }
 
-  private WorkflowOperationResult handleMultipleTracks(MediaPackage mediaPackage, WorkflowOperationInstance operation,
+  private WorkflowOperationResult handleMultipleTracks(MediaPackage mediaPackage,
           CompositeSettings compositeSettings, Option<Attachment> watermarkAttachment) throws EncoderException,
           IOException, NotFoundException, MediaPackageException, WorkflowOperationException {
     if (compositeSettings.getMultiSourceLayouts() == null || compositeSettings.getMultiSourceLayouts().size() == 0) {

@@ -50,8 +50,6 @@ import org.opencastproject.textanalyzer.api.TextAnalyzerException;
 import org.opencastproject.textanalyzer.api.TextAnalyzerService;
 import org.opencastproject.textextractor.api.TextExtractor;
 import org.opencastproject.textextractor.api.TextExtractorException;
-import org.opencastproject.textextractor.api.TextFrame;
-import org.opencastproject.textextractor.api.TextLine;
 import org.opencastproject.util.LoadUtil;
 import org.opencastproject.util.NotFoundException;
 import org.opencastproject.workspace.api.Workspace;
@@ -90,7 +88,7 @@ public class TextAnalyzerServiceImpl extends AbstractJobProducer implements Text
   /** The approximate load placed on the system by creating a text analysis job */
   public static final float DEFAULT_ANALYSIS_JOB_LOAD = 0.2f;
 
-  /** The key to look for in the service configuration file to override the {@link DEFAULT_ANALYSIS_JOB_LOAD} */
+  /** The key to look for in the service configuration file to override the {@link #DEFAULT_ANALYSIS_JOB_LOAD} */
   public static final String ANALYSIS_JOB_LOAD_KEY = "job.load.analysis";
 
   /** The approximate load placed on the system by creating a text analysis job */
@@ -283,33 +281,27 @@ public class TextAnalyzerServiceImpl extends AbstractJobProducer implements Text
     /* Call the text extractor implementation to extract the text from the
      * provided image file */
     List<VideoText> videoTexts = new ArrayList<VideoText>();
-    TextFrame textFrame = null;
+    List<String> extractedText;
     try {
-      textFrame = textExtractor.extract(imageFile);
-    } catch (IOException e) {
-      logger.warn("Error reading image file {}: {}", imageFile, e.getMessage());
-      throw new TextAnalyzerException(e);
-    } catch (TextExtractorException e) {
-      logger.warn("Error extracting text from {}: {}", imageFile, e.getMessage());
+      extractedText = textExtractor.extract(imageFile);
+    } catch (IOException | TextExtractorException e) {
+      logger.warn("Error extracting text from {}", imageFile, e);
       throw new TextAnalyzerException(e);
     }
 
     /* Get detected text as raw string */
     int i = 1;
-    for (TextLine line : textFrame.getLines()) {
-      if (line.getText() != null) {
-        VideoText videoText = new VideoTextImpl(id + "-" + i++);
-        videoText.setBoundary(line.getBoundaries());
-        Textual text = dictionaryService.cleanUpText(line.getText());
-        if (text != null) {
-          videoText.setText(text);
-          videoTexts.add(videoText);
-        }
+    for (String line : extractedText) {
+      VideoText videoText = new VideoTextImpl(id + "-" + i++);
+      Textual text = dictionaryService.cleanUpText(line);
+      if (text != null) {
+        videoText.setText(text);
+        videoTexts.add(videoText);
       }
     }
 
 
-    return videoTexts.toArray(new VideoText[videoTexts.size()]);
+    return videoTexts.toArray(new VideoText[0]);
   }
 
   /**
@@ -434,6 +426,7 @@ public class TextAnalyzerServiceImpl extends AbstractJobProducer implements Text
 
   @Override
   public void updated(@SuppressWarnings("rawtypes") Dictionary properties) throws ConfigurationException {
-    analysisJobLoad = LoadUtil.getConfiguredLoadValue(properties, ANALYSIS_JOB_LOAD_KEY, DEFAULT_ANALYSIS_JOB_LOAD, serviceRegistry);
+    analysisJobLoad = LoadUtil.getConfiguredLoadValue(properties, ANALYSIS_JOB_LOAD_KEY, DEFAULT_ANALYSIS_JOB_LOAD,
+            serviceRegistry);
   }
 }
