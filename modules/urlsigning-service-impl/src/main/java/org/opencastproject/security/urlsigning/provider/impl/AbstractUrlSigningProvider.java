@@ -29,7 +29,6 @@ import org.opencastproject.urlsigning.common.ResourceStrategy;
 import org.opencastproject.urlsigning.utils.ResourceRequestUtil;
 
 import org.apache.commons.lang3.StringUtils;
-import org.apache.commons.lang3.exception.ExceptionUtils;
 import org.apache.http.NameValuePair;
 import org.apache.http.client.utils.URLEncodedUtils;
 import org.osgi.service.cm.ConfigurationException;
@@ -86,13 +85,17 @@ public abstract class AbstractUrlSigningProvider implements UrlSigningProvider, 
   /**
    * A class representing a URL signing key.
    */
-  private static class Key {
+  protected static class Key {
     private String id = null;
     private String secret = null;
     private String organizationId = ANY_ORGANIZATION;
 
     Key(String id) {
       this.id = id;
+    }
+
+    public String getSecret() {
+        return secret;
     }
 
     boolean supports(String organizationId) {
@@ -130,7 +133,7 @@ public abstract class AbstractUrlSigningProvider implements UrlSigningProvider, 
    *          The URL that needs to be signed.
    * @return The {@link Key} if it is available.
    */
-  private Key getKey(String baseUrl) {
+  protected Key getKey(String baseUrl) {
     /* Optimization: Use TreeMap.floorEntry that can retrieve the greatest URL equal to or greater than 'baseUrl'
        in O(log(n)). As we are trying to find an URL that is a prefix of 'baseUrl', candidate.getKey() either is
        that URL (needs to be checked!) or there is no such URL. */
@@ -274,7 +277,7 @@ public abstract class AbstractUrlSigningProvider implements UrlSigningProvider, 
       return new URI(uri.getScheme(), null, uri.getHost(), uri.getPort(), uri.getPath(),
               URLEncodedUtils.format(queryStringParameters, StandardCharsets.UTF_8), null).toString();
     } catch (Exception e) {
-      getLogger().error("Unable to create signed URL because {}", ExceptionUtils.getStackTrace(e));
+      getLogger().error("Unable to create signed URL because", e);
       throw new UrlSigningException(e);
     }
   }
