@@ -85,7 +85,7 @@ public abstract class AbstractUrlSigningProvider implements UrlSigningProvider, 
   /**
    * A class representing a URL signing key.
    */
-  private static class Key {
+  protected static class Key {
     private String id = null;
     private String secret = null;
     private String organizationId = ANY_ORGANIZATION;
@@ -94,6 +94,10 @@ public abstract class AbstractUrlSigningProvider implements UrlSigningProvider, 
       this.id = id;
     }
 
+    public String getSecret() {
+        return secret;
+    }
+    
     boolean supports(String organizationId) {
       return this.organizationId.equals(ANY_ORGANIZATION) || this.organizationId.equals(organizationId);
     }
@@ -129,7 +133,7 @@ public abstract class AbstractUrlSigningProvider implements UrlSigningProvider, 
    *          The URL that needs to be signed.
    * @return The {@link Key} if it is available.
    */
-  private Key getKey(String baseUrl) {
+  protected Key getKey(String baseUrl) {
     /* Optimization: Use TreeMap.floorEntry that can retrieve the greatest URL equal to or greater than 'baseUrl'
        in O(log(n)). As we are trying to find an URL that is a prefix of 'baseUrl', candidate.getKey() either is
        that URL (needs to be checked!) or there is no such URL. */
