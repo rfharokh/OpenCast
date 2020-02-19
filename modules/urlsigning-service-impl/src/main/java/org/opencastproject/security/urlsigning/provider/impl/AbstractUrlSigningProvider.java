@@ -97,7 +97,7 @@ public abstract class AbstractUrlSigningProvider implements UrlSigningProvider, 
     public String getSecret() {
         return secret;
     }
-    
+
     boolean supports(String organizationId) {
       return this.organizationId.equals(ANY_ORGANIZATION) || this.organizationId.equals(organizationId);
     }
