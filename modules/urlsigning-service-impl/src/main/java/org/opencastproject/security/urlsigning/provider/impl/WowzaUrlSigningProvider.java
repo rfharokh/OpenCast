@@ -76,7 +76,7 @@ public class WowzaUrlSigningProvider extends AbstractUrlSigningProvider {
       }
 
       // Get the key that matches this URI since there must be one that matches as the base url has been accepted.
-      Key key = getKey(policy.getBaseUrl()).get();
+      Key key = getKey(policy.getBaseUrl());
 
       policy.setResourceStrategy(getResourceStrategy());
 
@@ -86,7 +86,7 @@ public class WowzaUrlSigningProvider extends AbstractUrlSigningProvider {
 
           throw new Exception("Given key not valid. (prefix:secret)");
       }
-      String[] wowzaKeyPair = keyEntry.getValue().getSecret().split(":");
+      String[] wowzaKeyPair = key.getSecret().split(":");
       String wowzaPrefix = wowzaKeyPair[0];
       String wowzaSecret = wowzaKeyPair[1];
 
