@@ -107,4 +107,15 @@ public class WowzaResourceStrategyImpl implements ResourceStrategy {
     // There are no special delimiters so assume the first value between two forward slashes (/.../) is the application.
     return baseUri.getPath().substring(baseUri.getPath().indexOf("/") + 1, baseUri.getPath().lastIndexOf("/"));
   }
+  /**
+   * Transform a base URI into a proper stream location without the host.
+   *
+   * @param baseUri
+   *          The full URI to the resource including the host and application.
+   * @return A safe standard RTMP resource location.
+   */
+  protected static String getHTTPResource(URI baseUri) {
+    // There are no special delimiters so assume the first value between two forward slashes (/.../) is the application.
+    return baseUri.getPath().substring(baseUri.getPath().indexOf("/") + 1, baseUri.getPath().lastIndexOf("/"));
+  }
 }
