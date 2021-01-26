@@ -10,6 +10,7 @@ $(document).ready(function () {
     if (window.location !== window.parent.location) {
         addTitleToCodeTag();
         addCopyToClipboardButton();
+        linkHeaders();
     } else {
         (function (i, s, o, g, r, a, m) {
             i['GoogleAnalyticsObject'] = r;
@@ -25,8 +26,29 @@ $(document).ready(function () {
         ga('create', 'UA-120509325-1', 'auto');
         ga('send', 'pageview');
     }
+    tocPaneFix();
+
+    // Display a hint that the development docs are outdated unless we are on develop.
+    if (window.location.pathname.startsWith('/r/')) {
+        let path = window.location.pathname.replace(/^\/r\/[0-9]+\.*x/, '/develop')
+        let page_content = $('.wm-page-content').prepend(
+            `<div style="padding: 20px; border-left: 3px solid silver;">
+            This is an outdated version of the development documentation for Opencast.
+            The latest version of the docs can be found <a href="${path}">here</a>.</div>`)
+    }
 });
 
+
+/**
+ * Fixes the issue that you can click on the toc elements, while the toc pane on the left side is closed
+ */
+function tocPaneFix() {
+    $('#wm-toc-button').on('click', function (e) {
+        if (!isSmallScreen()) {
+            $('.wm-toc-pane').toggleClass('hidden');
+        }
+    })
+}
 
 /**
  * Adds a tooltip to all <code> block containing "etc/" via title tag
@@ -43,6 +65,26 @@ function addTitleToCodeTag() {
         if (typeof CODE.innerText !== 'undefined') {
             if (CODE.innerText.startsWith('etc/')) {
                 CODE.innerHTML = CODE.innerHTML.replace(/^etc/, SPAN.outerHTML);
+            }
+        }
+    }
+}
+
+/**
+ * Adds a section links to headers
+ */
+function linkHeaders() {
+    for (var i = 1; i < 4; i++) {
+        var headers = document.getElementsByTagName('h' + i);
+        for (var j = 0; j < headers.length; j++) {
+            var header = headers[j],
+                id = header.getAttribute('id')
+            if (id) {
+                var a = document.createElement('a');
+                a.innerText = '🔗';
+                a.classList.add('header-link');
+                a.setAttribute('href', '#' + id);
+                header.appendChild(a);
             }
         }
     }
@@ -107,6 +149,7 @@ function createButton(id) {
     button.classList.add("glyphicon");
     button.classList.add("glyphicon-copy");
     button.classList.add("click-and-copy-button");
+    button.title = 'Copy to clipboard';
     return button;
 }
 

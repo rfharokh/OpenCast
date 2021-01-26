@@ -16,11 +16,11 @@ Requires python virtual environment.
 
 ```sh
 % cd guides
-% virtualenv venv
+% python -m venv venv
 % . ./venv/bin/activate
-% pip install mkdocs
+% pip install mkdocs mkdocs-windmill
 % pip install markdown_inline_graphviz_extension
-% pip install mkdocs-windmill
+% pip install markdown-inline-graphviz-extension-png
 % cd developer
 % python -m mkdocs serve
 ```

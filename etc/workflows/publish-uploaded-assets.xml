@@ -18,19 +18,6 @@
       description="Applying default configuration values">
       <configurations>
         <configuration key="publishToEngage">true</configuration>
-        <configuration key="publishToYouTube">false</configuration>
-      </configurations>
-    </operation>
-
-    <!-- Tag for publish -->
-
-    <operation
-      id="tag"
-      exception-handler-workflow="partial-error"
-      description="Tagging media package elements for archival">
-      <configurations>
-        <configuration key="source-flavors">*/*</configuration>
-        <configuration key="target-tags">+archive</configuration>
       </configurations>
     </operation>
 
@@ -48,7 +35,9 @@
       exception-handler-workflow="partial-error"
       description="Update recording in Opencast Media Module">
       <configurations>
-        <configuration key="download-source-flavors">${download-source-flavors}</configuration>
+        <configuration key="download-source-flavors">${download-source-flavors},dublincore/*,security/*</configuration>
+        <configuration key="download-source-tags">engage-download</configuration>
+        <configuration key="streaming-source-tags">engage-streaming</configuration>
         <configuration key="strategy">merge</configuration>
         <configuration key="check-availability">false</configuration>
       </configurations>
@@ -60,7 +49,7 @@
       id="snapshot"
       description="Archiving new assets">
       <configurations>
-        <configuration key="source-tags">archive</configuration>
+        <configuration key="source-flavors">*/*</configuration>
       </configurations>
     </operation>
 

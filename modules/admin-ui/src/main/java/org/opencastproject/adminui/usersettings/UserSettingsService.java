@@ -26,9 +26,13 @@ import org.opencastproject.adminui.usersettings.persistence.UserSettingsServiceE
 import org.opencastproject.security.api.OrganizationDirectoryService;
 import org.opencastproject.security.api.SecurityService;
 import org.opencastproject.security.api.UserDirectoryService;
-import org.opencastproject.util.Log;
 
 import org.osgi.service.component.ComponentContext;
+import org.osgi.service.component.annotations.Activate;
+import org.osgi.service.component.annotations.Component;
+import org.osgi.service.component.annotations.Reference;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.util.List;
 
@@ -40,11 +44,19 @@ import javax.persistence.Query;
 /**
  * Finds the user settings and message signatures from the current user.
  */
+@Component(
+  immediate = true,
+  service = UserSettingsService.class,
+  property = {
+    "service.description=Admin UI - Users Settings Service",
+    "opencast.service.type=org.opencastproject.adminui.usersettings.UserSettingsService"
+  }
+)
 public class UserSettingsService {
   public static final String PERSISTENCE_UNIT = "org.opencastproject.adminui";
 
   /** Logging utilities */
-  private static final Log logger = Log.mk(UserSettingsService.class);
+  private static final Logger logger = LoggerFactory.getLogger(UserSettingsService.class);
 
   /** Factory used to create {@link EntityManager}s for transactions */
   protected EntityManagerFactory emf;
@@ -63,11 +75,13 @@ public class UserSettingsService {
    *
    * @param cc
    */
+  @Activate
   public void activate(ComponentContext cc) {
     logger.info("Activating persistence manager for user settings");
   }
 
   /** OSGi DI */
+  @Reference(target = "(osgi.unit.name=org.opencastproject.adminui)")
   public void setEntityManagerFactory(EntityManagerFactory emf) {
     this.emf = emf;
   }
@@ -78,6 +92,7 @@ public class UserSettingsService {
    * @param userDirectoryService
    *          user directory service
    */
+  @Reference
   public void setUserDirectoryService(UserDirectoryService userDirectoryService) {
     this.userDirectoryService = userDirectoryService;
   }
@@ -88,6 +103,7 @@ public class UserSettingsService {
    * @param securityService
    *          the security service
    */
+  @Reference
   public void setSecurityService(SecurityService securityService) {
     this.securityService = securityService;
   }

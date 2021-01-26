@@ -928,29 +928,6 @@ public class SchedulerServiceImpl extends AbstractIndexProducer implements Sched
   }
 
   @Override
-  public AccessControlList getAccessControlList(String mediaPackageId) throws NotFoundException, SchedulerException {
-    notEmpty(mediaPackageId, "mediaPackageId");
-
-    try {
-      AQueryBuilder query = assetManager.createQuery();
-      AResult result = query.select(query.snapshot())
-              .where(withOrganization(query).and(query.mediaPackageId(mediaPackageId)).and(withOwner(query))
-                  .and(query.version().isLatest()))
-              .run();
-      Opt<ARecord> record = result.getRecords().head();
-      if (record.isNone())
-        throw new NotFoundException();
-
-      return authorizationService.getActiveAcl(record.get().getSnapshot().get().getMediaPackage()).getA();
-    } catch (NotFoundException e) {
-      throw e;
-    } catch (Exception e) {
-      logger.error("Failed to get access control list of event '{}':", mediaPackageId, e);
-      throw new SchedulerException(e);
-    }
-  }
-
-  @Override
   public Map<String, String> getWorkflowConfig(String mediaPackageId) throws NotFoundException, SchedulerException {
     notEmpty(mediaPackageId, "mediaPackageId");
 
@@ -1038,8 +1015,21 @@ public class SchedulerServiceImpl extends AbstractIndexProducer implements Sched
   public List<MediaPackage> findConflictingEvents(String captureDeviceID, Date startDate, Date endDate)
       throws SchedulerException {
     try {
-      return persistence.getEvents(captureDeviceID, startDate, endDate, Util.EVENT_MINIMUM_SEPARATION_MILLISECONDS)
-          .parallelStream().map(this::getEventMediaPackage).collect(Collectors.toList());
+      final Organization organization = securityService.getOrganization();
+      final User user = SecurityUtil.createSystemUser(systemUserName, organization);
+      List<MediaPackage> conflictingEvents = new ArrayList();
+
+      SecurityUtil.runAs(securityService, organization, user, () -> {
+        try {
+          conflictingEvents.addAll(persistence.getEvents(captureDeviceID, startDate, endDate, Util.EVENT_MINIMUM_SEPARATION_MILLISECONDS)
+            .stream().map(this::getEventMediaPackage).collect(Collectors.toList()));
+        } catch (SchedulerServiceDatabaseException e) {
+          logger.error("Failed to get conflicting events", e);
+        }
+      });
+
+      return conflictingEvents;
+
     } catch (Exception e) {
       throw new SchedulerException(e);
     }

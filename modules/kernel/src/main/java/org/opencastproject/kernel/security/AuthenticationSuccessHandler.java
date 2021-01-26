@@ -32,7 +32,6 @@ import org.springframework.security.core.Authentication;
 import java.io.IOException;
 import java.util.Map;
 
-import javax.servlet.ServletException;
 import javax.servlet.http.HttpServletRequest;
 import javax.servlet.http.HttpServletResponse;
 import javax.servlet.http.HttpSession;
@@ -63,15 +62,19 @@ public class AuthenticationSuccessHandler implements
    */
   @Override
   public void onAuthenticationSuccess(HttpServletRequest request, HttpServletResponse response,
-          Authentication authentication) throws IOException, ServletException {
+          Authentication authentication) throws IOException {
+
+    if ("application/json".equalsIgnoreCase(request.getHeader("Accept"))) {
+      response.sendRedirect("/info/me.json");
+      return;
+    }
 
     /* If the user originally attempted to access a specific URI other than /, but was forwarded to the login page,
-     * redirect the user back to that initial URI. But only if the request target was a user interface any not some kind
-     * of data. */
+     * redirect the user back to that initial URI. */
     HttpSession session = request.getSession();
     String initialRequestUri = (String) session.getAttribute(INITIAL_REQUEST_PATH);
     session.removeAttribute(INITIAL_REQUEST_PATH);
-    if (initialRequestUri != null && initialRequestUri.toLowerCase().contains(".htm")) {
+    if (initialRequestUri != null) {
       response.sendRedirect(initialRequestUri);
       return;
     }

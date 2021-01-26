@@ -30,6 +30,8 @@ import org.opencastproject.mediapackage.MediaPackageElementParser;
 import org.opencastproject.mediapackage.MediaPackageElements;
 import org.opencastproject.mediapackage.MediaPackageReferenceImpl;
 import org.opencastproject.mediapackage.Track;
+import org.opencastproject.mediapackage.selector.AbstractMediaPackageElementSelector;
+import org.opencastproject.mediapackage.selector.TrackSelector;
 import org.opencastproject.videosegmenter.api.VideoSegmenterService;
 import org.opencastproject.workflow.api.AbstractWorkflowOperationHandler;
 import org.opencastproject.workflow.api.WorkflowInstance;
@@ -45,7 +47,6 @@ import org.slf4j.LoggerFactory;
 
 import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.Iterator;
 import java.util.List;
 
 /**
@@ -62,6 +63,12 @@ public class VideoSegmenterWorkflowOperationHandler extends AbstractWorkflowOper
   /** Name of the configuration key that specifies the flavor of the track to analyze */
   private static final String PROP_TARGET_TAGS = "target-tags";
 
+  /** Name of the configuration key that specifies the tag of the track to analyze */
+  private static final String PROP_ANALYSIS_TRACK_TAG = "source-tags";
+
+  /** Minimum video length in seconds for video segmentation to run */
+  private static final int MIN_VIDEO_LENGTH = 30000;
+
   /** The composer service */
   private VideoSegmenterService videosegmenter = null;
 
@@ -71,9 +78,10 @@ public class VideoSegmenterWorkflowOperationHandler extends AbstractWorkflowOper
   /**
    * {@inheritDoc}
    *
-   * @see org.opencastproject.workflow.api.WorkflowOperationHandler#start(org.opencastproject.workflow.api.WorkflowInstance,
-   *      JobContext)
+   * @see org.opencastproject.workflow.api.WorkflowOperationHandler#start(
+   *      org.opencastproject.workflow.api.WorkflowInstance, JobContext)
    */
+  @Override
   public WorkflowOperationResult start(final WorkflowInstance workflowInstance, JobContext context)
           throws WorkflowOperationException {
     logger.debug("Running video segmentation on workflow {}", workflowInstance.getId());
@@ -82,21 +90,29 @@ public class VideoSegmenterWorkflowOperationHandler extends AbstractWorkflowOper
     MediaPackage mediaPackage = workflowInstance.getMediaPackage();
 
     // Find movie track to analyze
+    String trackTag = StringUtils.trimToNull(operation.getConfiguration(PROP_ANALYSIS_TRACK_TAG));
     String trackFlavor = StringUtils.trimToNull(operation.getConfiguration(PROP_ANALYSIS_TRACK_FLAVOR));
     List<String> targetTags = asList(operation.getConfiguration(PROP_TARGET_TAGS));
     List<Track> candidates = new ArrayList<Track>();
-    if (trackFlavor != null)
-      candidates.addAll(Arrays.asList(mediaPackage.getTracks(MediaPackageElementFlavor.parseFlavor(trackFlavor))));
-    else
+    // Allow the combination of flavor and tag to narrow down choice of source
+
+    if (StringUtils.isBlank(trackTag) && StringUtils.isBlank(trackFlavor)) {
+      // Default
       candidates.addAll(Arrays.asList(mediaPackage.getTracks(MediaPackageElements.PRESENTATION_SOURCE)));
+    } else {
+      AbstractMediaPackageElementSelector<Track> elementSelector = new TrackSelector();
+      if (StringUtils.isNotBlank(trackTag)) {
+        elementSelector.addTag(trackTag);
+      }
+      if (StringUtils.isNotBlank(trackFlavor)) {
+        elementSelector.addFlavor(MediaPackageElementFlavor.parseFlavor(trackFlavor));
+      }
+      candidates.addAll(elementSelector.select(mediaPackage, true));
+    }
+    // Select the source flavors
 
     // Remove unsupported tracks (only those containing video can be segmented)
-    Iterator<Track> ti = candidates.iterator();
-    while (ti.hasNext()) {
-      Track t = ti.next();
-      if (!t.hasVideo())
-        ti.remove();
-    }
+    candidates.removeIf(t -> !t.hasVideo());
 
     // Found one?
     if (candidates.size() == 0) {
@@ -109,6 +125,12 @@ public class VideoSegmenterWorkflowOperationHandler extends AbstractWorkflowOper
       logger.info("Found more than one track to segment, choosing the first one ({})", candidates.get(0));
     }
     Track track = candidates.get(0);
+
+    // Skip operation if media is shorter than the minimum defined video length (30s) since we won't generate a
+    // sensible segmentation on such a short video anyway.
+    if (track.getDuration() != null && track.getDuration() < MIN_VIDEO_LENGTH) {
+      return createResult(mediaPackage, Action.SKIP);
+    }
 
     // Segment the media package
     Catalog mpeg7Catalog = null;

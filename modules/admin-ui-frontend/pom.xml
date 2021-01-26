@@ -7,7 +7,7 @@
   <parent>
     <groupId>org.opencastproject</groupId>
     <artifactId>base</artifactId>
-    <version>9-SNAPSHOT</version>
+    <version>10-SNAPSHOT</version>
     <relativePath>../../pom.xml</relativePath>
   </parent>
   <properties>
@@ -25,7 +25,7 @@
             <artifactId>exec-maven-plugin</artifactId>
             <executions>
               <execution>
-                <id>npm install</id>
+                <id>npm ci</id>
                 <goals>
                   <goal>exec</goal>
                 </goals>
@@ -33,7 +33,7 @@
                 <configuration>
                   <executable>npm</executable>
                   <arguments>
-                    <argument>install</argument>
+                    <argument>ci</argument>
                   </arguments>
                 </configuration>
               </execution>
@@ -46,6 +46,7 @@
                 <configuration>
                   <executable>node_modules/.bin/bower</executable>
                   <arguments>
+                    <argument>--allow-root</argument>
                     <argument>install</argument>
                   </arguments>
                 </configuration>
@@ -57,8 +58,6 @@
                 </goals>
                 <phase>compile</phase>
                 <configuration>
-                  <!-- bring PHANTOMJS_BIN into scope -->
-                  <environmentScript>phantomjs-path.sh</environmentScript>
                   <executable>node_modules/grunt-cli/bin/grunt</executable>
                   <arguments>
                     <argument>build</argument>
@@ -103,16 +102,15 @@
                 </goals>
                 <configuration>
                   <nodeVersion>${node.version}</nodeVersion>
-                  <npmVersion>${npm.version}</npmVersion>
                 </configuration>
               </execution>
               <execution>
-                <id>npm install</id>
+                <id>npm ci</id>
                 <goals>
                   <goal>npm</goal>
                 </goals>
                 <configuration>
-                  <arguments>install</arguments>
+                  <arguments>ci</arguments>
                 </configuration>
               </execution>
               <execution>
@@ -121,7 +119,7 @@
                   <goal>bower</goal>
                 </goals>
                 <configuration>
-                  <arguments>install</arguments>
+                  <arguments>--allow-root install</arguments>
                 </configuration>
               </execution>
               <execution>

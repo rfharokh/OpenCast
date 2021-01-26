@@ -2,6 +2,8 @@
 'use strict';
 
 // Set a fixed locale required for running tests
+process.env.LANGUAGE='en_US.UTF-8';
+process.env.LC_ALL='en_US.UTF-8';
 process.env.LANG='en_US.UTF-8';
 
 // # Globbing
@@ -470,8 +472,7 @@ module.exports = function (grunt) {
       },
       coverage: {
         singleRun : true,
-        reporters : ['dots', 'coverage'],
-        browsers  : ['PhantomJS']
+        reporters : ['dots', 'coverage']
       }
     }
   });

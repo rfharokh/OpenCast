@@ -1,31 +1,40 @@
-Opencast 9: Release Notes
+Opencast 10: Release Notes
 =========================
 
 Important Changes
 -----------------
 
-- External Elasticsearch
-- MariaDB JDBC driver
-
+- …
 
 Features
 --------
 
-- todo:
-- list
-- of
-- listed
+- …
 
+Improvements
+------------
 
-Other Changes
--------------
+- …
 
-- OAI-PMH is not enabled by default any longer but need to be added to the workflow is it is to be used.
-  This prevents users from accidentally and unknowingly publishing events to a publication channel which is public by
-  default regardless of any set permissions for events.
+API changes
+-----------
 
+- …
 
 Release Schedule
 ----------------
 
-*To be determined*
+| Date                        | Phase                    |
+|-----------------------------|--------------------------|
+| May 18, 2021                | Feature freeze           |
+| May 24, 2021                | Translation week         |
+| May 31, 2021                | Public QA                |
+| June 15, 2021               | Release of Opencast 10.0 |
+
+
+
+Release managers
+----------------
+
+- Greg Logan
+- Per Pascal Seeland (University of Stuttgart)
